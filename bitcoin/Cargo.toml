@@ -39,7 +39,7 @@ secp-recovery = ["secp256k1/recovery"]
 arbitrary = ["dep:arbitrary", "units/arbitrary"]
 
 [dependencies]
-base58 = { package = "base58ck", version = "0.1.0", default-features = false, features = [
+base58 = { package = "satsnet-base58ck", version = "0.1.0", default-features = false, features = [
     "alloc",
 ] }
 bech32 = { version = "0.11.0", default-features = false, features = ["alloc"] }

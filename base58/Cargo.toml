@@ -1,5 +1,5 @@
 [package]
-name = "base58ck"
+name = "satsnet-base58ck"
 version = "0.1.0"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 license = "CC0-1.0"
