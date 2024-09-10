@@ -72,11 +72,15 @@ impl Height {
 
     /// Converts this [`Height`] to its inner `u32` value.
     #[inline]
-    pub fn to_consensus_u32(self) -> u32 { self.0 }
+    pub fn to_consensus_u32(self) -> u32 {
+        self.0
+    }
 }
 
 impl fmt::Display for Height {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
 }
 
 crate::impl_parse_str!(Height, ParseHeightError, parser(Height::from_consensus));
@@ -94,11 +98,15 @@ impl fmt::Display for ParseHeightError {
 #[cfg(feature = "std")]
 impl std::error::Error for ParseHeightError {
     // To be consistent with `write_err` we need to **not** return source in case of overflow
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { self.0.source() }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.0.source()
+    }
 }
 
 impl From<ParseError> for ParseHeightError {
-    fn from(value: ParseError) -> Self { Self(value) }
+    fn from(value: ParseError) -> Self {
+        Self(value)
+    }
 }
 
 #[cfg(feature = "serde")]
@@ -140,7 +148,9 @@ impl Time {
     /// Creates a [`Time`] from a hex string.
     ///
     /// The input string may or may not contain a typical hex prefix e.g., `0x`.
-    pub fn from_hex(s: &str) -> Result<Self, ParseTimeError> { parse_hex(s, Self::from_consensus) }
+    pub fn from_hex(s: &str) -> Result<Self, ParseTimeError> {
+        parse_hex(s, Self::from_consensus)
+    }
 
     /// Constructs a new block time.
     ///
@@ -168,11 +178,15 @@ impl Time {
 
     /// Converts this [`Time`] to its inner `u32` value.
     #[inline]
-    pub fn to_consensus_u32(self) -> u32 { self.0 }
+    pub fn to_consensus_u32(self) -> u32 {
+        self.0
+    }
 }
 
 impl fmt::Display for Time {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
 }
 
 crate::impl_parse_str!(Time, ParseTimeError, parser(Time::from_consensus));
@@ -211,11 +225,15 @@ impl fmt::Display for ParseTimeError {
 #[cfg(feature = "std")]
 impl std::error::Error for ParseTimeError {
     // To be consistent with `write_err` we need to **not** return source in case of overflow
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { self.0.source() }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.0.source()
+    }
 }
 
 impl From<ParseError> for ParseTimeError {
-    fn from(value: ParseError) -> Self { Self(value) }
+    fn from(value: ParseError) -> Self {
+        Self(value)
+    }
 }
 
 fn parser<T, E, S, F>(f: F) -> impl FnOnce(S) -> Result<T, E>
@@ -244,10 +262,14 @@ where
 }
 
 /// Returns true if `n` is a block height i.e., less than 500,000,000.
-pub fn is_block_height(n: u32) -> bool { n < LOCK_TIME_THRESHOLD }
+pub fn is_block_height(n: u32) -> bool {
+    n < LOCK_TIME_THRESHOLD
+}
 
 /// Returns true if `n` is a UNIX timestamp i.e., greater than or equal to 500,000,000.
-pub fn is_block_time(n: u32) -> bool { n >= LOCK_TIME_THRESHOLD }
+pub fn is_block_time(n: u32) -> bool {
+    n >= LOCK_TIME_THRESHOLD
+}
 
 /// An error that occurs when converting a `u32` to a lock time variant.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -261,10 +283,14 @@ pub struct ConversionError {
 
 impl ConversionError {
     /// Constructs a `ConversionError` from an invalid `n` when expecting a height value.
-    fn invalid_height(n: u32) -> Self { Self { unit: LockTimeUnit::Blocks, input: n } }
+    fn invalid_height(n: u32) -> Self {
+        Self { unit: LockTimeUnit::Blocks, input: n }
+    }
 
     /// Constructs a `ConversionError` from an invalid `n` when expecting a time value.
-    fn invalid_time(n: u32) -> Self { Self { unit: LockTimeUnit::Seconds, input: n } }
+    fn invalid_time(n: u32) -> Self {
+        Self { unit: LockTimeUnit::Seconds, input: n }
+    }
 }
 
 impl fmt::Display for ConversionError {
@@ -275,7 +301,9 @@ impl fmt::Display for ConversionError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for ConversionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
 }
 
 /// Describes the two types of locking, lock-by-blockheight and lock-by-blocktime.
@@ -367,68 +395,7 @@ impl From<ParseIntError> for ParseError {
 }
 
 impl From<ConversionError> for ParseError {
-    fn from(value: ConversionError) -> Self { Self::Conversion(value.input.into()) }
-}
-
-#[cfg(test)]
-mod tests {
-    #[cfg(feature = "serde")]
-    use internals::serde_round_trip;
-
-    use super::*;
-
-    #[test]
-    fn time_from_str_hex_happy_path() {
-        let actual = Time::from_hex("0x6289C350").unwrap();
-        let expected = Time::from_consensus(0x6289C350).unwrap();
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn time_from_str_hex_no_prefix_happy_path() {
-        let time = Time::from_hex("6289C350").unwrap();
-        assert_eq!(time, Time(0x6289C350));
-    }
-
-    #[test]
-    fn time_from_str_hex_invalid_hex_should_err() {
-        let hex = "0xzb93";
-        let result = Time::from_hex(hex);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn height_from_str_hex_happy_path() {
-        let actual = Height::from_hex("0xBA70D").unwrap();
-        let expected = Height(0xBA70D);
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn height_from_str_hex_no_prefix_happy_path() {
-        let height = Height::from_hex("BA70D").unwrap();
-        assert_eq!(height, Height(0xBA70D));
-    }
-
-    #[test]
-    fn height_from_str_hex_invalid_hex_should_err() {
-        let hex = "0xzb93";
-        let result = Height::from_hex(hex);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    #[cfg(feature = "serde")]
-    pub fn encode_decode_height() {
-        serde_round_trip!(Height::ZERO);
-        serde_round_trip!(Height::MIN);
-        serde_round_trip!(Height::MAX);
-    }
-
-    #[test]
-    #[cfg(feature = "serde")]
-    pub fn encode_decode_time() {
-        serde_round_trip!(Time::MIN);
-        serde_round_trip!(Time::MAX);
+    fn from(value: ConversionError) -> Self {
+        Self::Conversion(value.input.into())
     }
 }

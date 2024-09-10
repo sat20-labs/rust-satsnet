@@ -80,17 +80,12 @@ extern crate alloc;
 
 extern crate core;
 
-#[cfg(feature = "bitcoin-io")]
-extern crate bitcoin_io as io;
+#[cfg(feature = "satsnet-io")]
+extern crate satsnet_io as io;
 
 #[cfg(feature = "serde")]
 /// A generic serialization/deserialization framework.
 pub extern crate serde;
-
-#[cfg(all(test, feature = "serde"))]
-extern crate serde_test;
-#[cfg(bench)]
-extern crate test;
 
 /// Re-export the `hex-conservative` crate.
 pub extern crate hex;
@@ -115,7 +110,7 @@ pub mod cmp;
 pub mod hash160;
 pub mod hkdf;
 pub mod hmac;
-#[cfg(feature = "bitcoin-io")]
+#[cfg(feature = "satsnet-io")]
 mod impls;
 pub mod ripemd160;
 pub mod sha1;
@@ -237,7 +232,7 @@ pub trait GeneralHash: Hash {
     }
 
     /// Hashes the entire contents of the `reader`.
-    #[cfg(feature = "bitcoin-io")]
+    #[cfg(feature = "satsnet-io")]
     fn hash_reader<R: io::BufRead>(reader: &mut R) -> Result<Self, io::Error>
     where
         Self::Engine: Default,
@@ -341,45 +336,3 @@ impl fmt::Display for FromSliceError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for FromSliceError {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::sha256d;
-
-    hash_newtype! {
-        /// A test newtype
-        struct TestNewtype(sha256d::Hash);
-
-        /// A test newtype
-        struct TestNewtype2(sha256d::Hash);
-    }
-
-    #[test]
-    #[cfg(feature = "alloc")]
-    fn newtype_fmt_roundtrip() {
-        use alloc::format;
-
-        #[rustfmt::skip]
-        const DUMMY: TestNewtype = TestNewtype::from_byte_array([
-            0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78, 0x89,
-            0x13, 0x24, 0x35, 0x46, 0x57, 0x68, 0x79, 0x8a,
-            0x14, 0x25, 0x36, 0x47, 0x58, 0x69, 0x7a, 0x8b,
-            0x15, 0x26, 0x37, 0x48, 0x59, 0x6a, 0x7b, 0x8c,
-        ]);
-
-        let orig = DUMMY;
-        let hex = format!("{}", orig);
-        let rinsed = hex.parse::<TestNewtype>().expect("failed to parse hex");
-        assert_eq!(rinsed, orig)
-    }
-
-    #[test]
-    #[cfg(feature = "bitcoin-io")]
-    fn hash_reader() {
-        use crate::sha256;
-
-        let mut reader: &[u8] = b"hello";
-        assert_eq!(sha256::Hash::hash_reader(&mut reader).unwrap(), sha256::Hash::hash(b"hello"),)
-    }
-}

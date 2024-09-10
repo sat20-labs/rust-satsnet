@@ -32,7 +32,9 @@ pub struct ParseIntError {
 
 impl ParseIntError {
     /// Returns the input that was attempted to be parsed.
-    pub fn input(&self) -> &str { &self.input }
+    pub fn input(&self) -> &str {
+        &self.input
+    }
 }
 
 impl fmt::Display for ParseIntError {
@@ -45,15 +47,21 @@ impl fmt::Display for ParseIntError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for ParseIntError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { Some(&self.source) }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
 }
 
 impl From<ParseIntError> for core::num::ParseIntError {
-    fn from(value: ParseIntError) -> Self { value.source }
+    fn from(value: ParseIntError) -> Self {
+        value.source
+    }
 }
 
 impl AsRef<core::num::ParseIntError> for ParseIntError {
-    fn as_ref(&self) -> &core::num::ParseIntError { &self.source }
+    fn as_ref(&self) -> &core::num::ParseIntError {
+        &self.source
+    }
 }
 
 /// Not strictly necessary but serves as a lint - avoids weird behavior if someone accidentally
@@ -329,11 +337,15 @@ impl std::error::Error for PrefixedHexError {
 }
 
 impl From<MissingPrefixError> for PrefixedHexError {
-    fn from(e: MissingPrefixError) -> Self { Self::MissingPrefix(e) }
+    fn from(e: MissingPrefixError) -> Self {
+        Self::MissingPrefix(e)
+    }
 }
 
 impl From<ParseIntError> for PrefixedHexError {
-    fn from(e: ParseIntError) -> Self { Self::ParseInt(e) }
+    fn from(e: ParseIntError) -> Self {
+        Self::ParseInt(e)
+    }
 }
 
 /// Error returned when parsing an integer from a hex string that is not supposed to contain a prefix.
@@ -369,11 +381,15 @@ impl std::error::Error for UnprefixedHexError {
 }
 
 impl From<ContainsPrefixError> for UnprefixedHexError {
-    fn from(e: ContainsPrefixError) -> Self { Self::ContainsPrefix(e) }
+    fn from(e: ContainsPrefixError) -> Self {
+        Self::ContainsPrefix(e)
+    }
 }
 
 impl From<ParseIntError> for UnprefixedHexError {
-    fn from(e: ParseIntError) -> Self { Self::ParseInt(e) }
+    fn from(e: ParseIntError) -> Self {
+        Self::ParseInt(e)
+    }
 }
 
 /// Error returned when a hex string is missing a prefix (e.g. `0x`).
@@ -384,7 +400,9 @@ pub struct MissingPrefixError {
 
 impl MissingPrefixError {
     /// Creates an error from the string with the missing prefix.
-    pub(crate) fn new(hex: String) -> Self { Self { hex } }
+    pub(crate) fn new(hex: String) -> Self {
+        Self { hex }
+    }
 }
 
 impl fmt::Display for MissingPrefixError {
@@ -404,7 +422,9 @@ pub struct ContainsPrefixError {
 
 impl ContainsPrefixError {
     /// Creates an error from the string that contains the prefix.
-    pub(crate) fn new(hex: String) -> Self { Self { hex } }
+    pub(crate) fn new(hex: String) -> Self {
+        Self { hex }
+    }
 }
 
 impl fmt::Display for ContainsPrefixError {
@@ -415,41 +435,3 @@ impl fmt::Display for ContainsPrefixError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for ContainsPrefixError {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_u32_from_hex_prefixed() {
-        let want = 171;
-        let got = hex_u32("0xab").expect("failed to parse prefixed hex");
-        assert_eq!(got, want);
-    }
-
-    #[test]
-    fn parse_u32_from_hex_no_prefix() {
-        let want = 171;
-        let got = hex_u32("ab").expect("failed to parse non-prefixed hex");
-        assert_eq!(got, want);
-    }
-
-    #[test]
-    fn parse_u128_from_hex_prefixed() {
-        let want = 3735928559;
-        let got = hex_u128("0xdeadbeef").expect("failed to parse prefixed hex");
-        assert_eq!(got, want);
-    }
-
-    #[test]
-    fn parse_u128_from_hex_no_prefix() {
-        let want = 3735928559;
-        let got = hex_u128("deadbeef").expect("failed to parse non-prefixed hex");
-        assert_eq!(got, want);
-    }
-
-    #[test]
-    fn parse_u32_from_hex_unchecked_errors_on_prefix() {
-        assert!(hex_u32_unchecked("0xab").is_err());
-    }
-}

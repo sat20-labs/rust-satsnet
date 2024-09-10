@@ -52,9 +52,6 @@ internals::const_assert!(
     "platforms that have usize less than 32 bits are not supported"
 );
 
-#[cfg(bench)]
-extern crate test;
-
 #[macro_use]
 extern crate alloc;
 
@@ -71,7 +68,7 @@ pub extern crate hashes;
 /// Re-export the `hex-conservative` crate.
 pub extern crate hex;
 
-/// Re-export the `bitcoin-io` crate.
+/// Re-export the `satsnet-io` crate.
 pub extern crate io;
 
 /// Re-export the `ordered` crate.

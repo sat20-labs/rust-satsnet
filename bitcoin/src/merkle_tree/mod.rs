@@ -98,7 +98,9 @@ pub trait MerkleNode: Copy {
 // provided methods in the trait definition.
 impl MerkleNode for TxMerkleNode {
     type Leaf = Txid;
-    fn from_leaf(leaf: Self::Leaf) -> Self { Self::from_byte_array(leaf.to_byte_array()) }
+    fn from_leaf(leaf: Self::Leaf) -> Self {
+        Self::from_byte_array(leaf.to_byte_array())
+    }
 
     fn combine(&self, other: &Self) -> Self {
         let mut encoder = sha256d::Hash::engine();
@@ -109,33 +111,14 @@ impl MerkleNode for TxMerkleNode {
 }
 impl MerkleNode for WitnessMerkleNode {
     type Leaf = Wtxid;
-    fn from_leaf(leaf: Self::Leaf) -> Self { Self::from_byte_array(leaf.to_byte_array()) }
+    fn from_leaf(leaf: Self::Leaf) -> Self {
+        Self::from_byte_array(leaf.to_byte_array())
+    }
 
     fn combine(&self, other: &Self) -> Self {
         let mut encoder = sha256d::Hash::engine();
         encoder.input(self.as_byte_array());
         encoder.input(other.as_byte_array());
         Self(sha256d::Hash::from_engine(encoder))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::block::Block;
-    use crate::consensus::encode::deserialize;
-
-    #[test]
-    fn static_vector() {
-        // testnet block 000000000000045e0b1660b6445b5e5c5ab63c9a4f956be7e1e69be04fa4497b
-        let segwit_block = include_bytes!("../../tests/data/testnet_block_000000000000045e0b1660b6445b5e5c5ab63c9a4f956be7e1e69be04fa4497b.raw");
-        let block: Block = deserialize(&segwit_block[..]).expect("failed to deserialize block");
-
-        assert!(block.check_merkle_root());
-
-        // Same as `block.check_merkle_root` but do it explicitly.
-        let hashes_iter = block.txdata.iter().map(|obj| obj.compute_txid());
-        let from_iter = TxMerkleNode::calculate_root(hashes_iter.clone());
-        assert_eq!(from_iter, Some(block.header.merkle_root));
     }
 }

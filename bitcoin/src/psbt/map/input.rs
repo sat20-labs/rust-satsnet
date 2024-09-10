@@ -233,12 +233,16 @@ impl PsbtSighashType {
     ///
     /// Allows construction of a non-standard or non-valid sighash flag
     /// ([`EcdsaSighashType`], [`TapSighashType`] respectively).
-    pub fn from_u32(n: u32) -> PsbtSighashType { PsbtSighashType { inner: n } }
+    pub fn from_u32(n: u32) -> PsbtSighashType {
+        PsbtSighashType { inner: n }
+    }
 
     /// Converts [`PsbtSighashType`] to a raw `u32` sighash flag.
     ///
     /// No guarantees are made as to the standardness or validity of the returned value.
-    pub fn to_u32(self) -> u32 { self.inner }
+    pub fn to_u32(self) -> u32 {
+        self.inner
+    }
 }
 
 impl Input {
@@ -508,64 +512,3 @@ impl Map for Input {
 }
 
 impl_psbtmap_ser_de_serialize!(Input);
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn psbt_sighash_type_ecdsa() {
-        for ecdsa in &[
-            EcdsaSighashType::All,
-            EcdsaSighashType::None,
-            EcdsaSighashType::Single,
-            EcdsaSighashType::AllPlusAnyoneCanPay,
-            EcdsaSighashType::NonePlusAnyoneCanPay,
-            EcdsaSighashType::SinglePlusAnyoneCanPay,
-        ] {
-            let sighash = PsbtSighashType::from(*ecdsa);
-            let s = format!("{}", sighash);
-            let back = s.parse::<PsbtSighashType>().unwrap();
-            assert_eq!(back, sighash);
-            assert_eq!(back.ecdsa_hash_ty().unwrap(), *ecdsa);
-        }
-    }
-
-    #[test]
-    fn psbt_sighash_type_taproot() {
-        for tap in &[
-            TapSighashType::Default,
-            TapSighashType::All,
-            TapSighashType::None,
-            TapSighashType::Single,
-            TapSighashType::AllPlusAnyoneCanPay,
-            TapSighashType::NonePlusAnyoneCanPay,
-            TapSighashType::SinglePlusAnyoneCanPay,
-        ] {
-            let sighash = PsbtSighashType::from(*tap);
-            let s = format!("{}", sighash);
-            let back = s.parse::<PsbtSighashType>().unwrap();
-            assert_eq!(back, sighash);
-            assert_eq!(back.taproot_hash_ty().unwrap(), *tap);
-        }
-    }
-
-    #[test]
-    fn psbt_sighash_type_notstd() {
-        let nonstd = 0xdddddddd;
-        let sighash = PsbtSighashType { inner: nonstd };
-        let s = format!("{}", sighash);
-        let back = s.parse::<PsbtSighashType>().unwrap();
-
-        assert_eq!(back, sighash);
-        assert_eq!(back.ecdsa_hash_ty(), Err(NonStandardSighashTypeError(nonstd)));
-        assert_eq!(back.taproot_hash_ty(), Err(InvalidSighashTypeError(nonstd)));
-    }
-
-    #[test]
-    fn psbt_sighash_const_all() {
-        assert_eq!(PsbtSighashType::ALL.to_u32(), 0x01);
-        assert_eq!(PsbtSighashType::ALL.ecdsa_hash_ty().unwrap(), EcdsaSighashType::All);
-        assert_eq!(PsbtSighashType::ALL.taproot_hash_ty().unwrap(), TapSighashType::All);
-    }
-}

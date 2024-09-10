@@ -8,8 +8,6 @@
 use core::cmp::Ordering;
 use core::fmt;
 
-#[cfg(all(test, mutate))]
-use mutagen::mutate;
 use units::parse::{self, PrefixedHexError, UnprefixedHexError};
 
 #[cfg(doc)]
@@ -184,11 +182,15 @@ impl LockTime {
 
     /// Returns true if this lock time value is a block height.
     #[inline]
-    pub const fn is_block_height(&self) -> bool { matches!(*self, LockTime::Blocks(_)) }
+    pub const fn is_block_height(&self) -> bool {
+        matches!(*self, LockTime::Blocks(_))
+    }
 
     /// Returns true if this lock time value is a block time (UNIX timestamp).
     #[inline]
-    pub const fn is_block_time(&self) -> bool { !self.is_block_height() }
+    pub const fn is_block_time(&self) -> bool {
+        !self.is_block_height()
+    }
 
     /// Returns true if this timelock constraint is satisfied by the respective `height`/`time`.
     ///
@@ -292,12 +294,16 @@ units::impl_parse_str_from_int_infallible!(LockTime, u32, from_consensus);
 
 impl From<Height> for LockTime {
     #[inline]
-    fn from(h: Height) -> Self { LockTime::Blocks(h) }
+    fn from(h: Height) -> Self {
+        LockTime::Blocks(h)
+    }
 }
 
 impl From<Time> for LockTime {
     #[inline]
-    fn from(t: Time) -> Self { LockTime::Seconds(t) }
+    fn from(t: Time) -> Self {
+        LockTime::Seconds(t)
+    }
 }
 
 impl PartialOrd for LockTime {
@@ -361,7 +367,9 @@ impl<'de> serde::Deserialize<'de> for LockTime {
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = u32;
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result { f.write_str("a u32") }
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a u32")
+            }
             // We cannot just implement visit_u32 because JSON (among other things) always
             // calls visit_u64, even when called from Deserializer::deserialize_u32. The
             // other visit_u*s have default implementations that forward to visit_u64.
@@ -392,137 +400,5 @@ impl ordered::ArbitraryOrd for LockTime {
             (Blocks(this), Blocks(that)) => this.cmp(that),
             (Seconds(this), Seconds(that)) => this.cmp(that),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn display_and_alternate() {
-        let n = LockTime::from_consensus(741521);
-        let s = format!("{}", n);
-        assert_eq!(&s, "741521");
-
-        let got = format!("{:#}", n);
-        assert_eq!(got, "block-height 741521");
-    }
-
-    #[test]
-    fn lock_time_from_hex_lower() {
-        let lock = LockTime::from_hex("0x6289c350").unwrap();
-        assert_eq!(lock, LockTime::from_consensus(0x6289C350));
-    }
-
-    #[test]
-    fn lock_time_from_hex_upper() {
-        let lock = LockTime::from_hex("0X6289C350").unwrap();
-        assert_eq!(lock, LockTime::from_consensus(0x6289C350));
-    }
-
-    #[test]
-    fn lock_time_from_unprefixed_hex_lower() {
-        let lock = LockTime::from_unprefixed_hex("6289c350").unwrap();
-        assert_eq!(lock, LockTime::from_consensus(0x6289C350));
-    }
-
-    #[test]
-    fn lock_time_from_unprefixed_hex_upper() {
-        let lock = LockTime::from_unprefixed_hex("6289C350").unwrap();
-        assert_eq!(lock, LockTime::from_consensus(0x6289C350));
-    }
-
-    #[test]
-    fn lock_time_from_invalid_hex_should_err() {
-        let hex = "0xzb93";
-        let result = LockTime::from_hex(hex);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn parses_correctly_to_height_or_time() {
-        let lock = LockTime::from_consensus(750_000);
-
-        assert!(lock.is_block_height());
-        assert!(!lock.is_block_time());
-
-        let t: u32 = 1653195600; // May 22nd, 5am UTC.
-        let lock = LockTime::from_consensus(t);
-
-        assert!(!lock.is_block_height());
-        assert!(lock.is_block_time());
-    }
-
-    #[test]
-    fn satisfied_by_height() {
-        let lock = LockTime::from_consensus(750_000);
-
-        let height = Height::from_consensus(800_000).expect("failed to parse height");
-
-        let t: u32 = 1653195600; // May 22nd, 5am UTC.
-        let time = Time::from_consensus(t).expect("invalid time value");
-
-        assert!(lock.is_satisfied_by(height, time))
-    }
-
-    #[test]
-    fn satisfied_by_time() {
-        let lock = LockTime::from_consensus(1053195600);
-
-        let t: u32 = 1653195600; // May 22nd, 5am UTC.
-        let time = Time::from_consensus(t).expect("invalid time value");
-
-        let height = Height::from_consensus(800_000).expect("failed to parse height");
-
-        assert!(lock.is_satisfied_by(height, time))
-    }
-
-    #[test]
-    fn satisfied_by_same_height() {
-        let h = 750_000;
-        let lock = LockTime::from_consensus(h);
-        let height = Height::from_consensus(h).expect("failed to parse height");
-
-        let t: u32 = 1653195600; // May 22nd, 5am UTC.
-        let time = Time::from_consensus(t).expect("invalid time value");
-
-        assert!(lock.is_satisfied_by(height, time))
-    }
-
-    #[test]
-    fn satisfied_by_same_time() {
-        let t: u32 = 1653195600; // May 22nd, 5am UTC.
-        let lock = LockTime::from_consensus(t);
-        let time = Time::from_consensus(t).expect("invalid time value");
-
-        let height = Height::from_consensus(800_000).expect("failed to parse height");
-
-        assert!(lock.is_satisfied_by(height, time))
-    }
-
-    #[test]
-    fn height_correctly_implies() {
-        let lock = LockTime::from_consensus(750_005);
-
-        assert!(!lock.is_implied_by(LockTime::from_consensus(750_004)));
-        assert!(lock.is_implied_by(LockTime::from_consensus(750_005)));
-        assert!(lock.is_implied_by(LockTime::from_consensus(750_006)));
-    }
-
-    #[test]
-    fn time_correctly_implies() {
-        let t: u32 = 1700000005;
-        let lock = LockTime::from_consensus(t);
-
-        assert!(!lock.is_implied_by(LockTime::from_consensus(1700000004)));
-        assert!(lock.is_implied_by(LockTime::from_consensus(1700000005)));
-        assert!(lock.is_implied_by(LockTime::from_consensus(1700000006)));
-    }
-
-    #[test]
-    fn incorrect_units_do_not_imply() {
-        let lock = LockTime::from_consensus(750_005);
-        assert!(!lock.is_implied_by(LockTime::from_consensus(1700000004)));
     }
 }

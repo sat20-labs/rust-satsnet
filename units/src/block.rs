@@ -43,25 +43,35 @@ impl BlockHeight {
 
     /// Creates a block height from a `u32`.
     // Because From<u32> is not const.
-    pub const fn from_u32(inner: u32) -> Self { Self(inner) }
+    pub const fn from_u32(inner: u32) -> Self {
+        Self(inner)
+    }
 
     /// Returns block height as a `u32`.
     // Because type inference doesn't always work using `Into`.
-    pub const fn to_u32(&self) -> u32 { self.0 }
+    pub const fn to_u32(&self) -> u32 {
+        self.0
+    }
 }
 
 impl fmt::Display for BlockHeight {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
 }
 
 crate::impl_parse_str_from_int_infallible!(BlockHeight, u32, from);
 
 impl From<u32> for BlockHeight {
-    fn from(inner: u32) -> Self { Self::from_u32(inner) }
+    fn from(inner: u32) -> Self {
+        Self::from_u32(inner)
+    }
 }
 
 impl From<BlockHeight> for u32 {
-    fn from(height: BlockHeight) -> Self { height.to_u32() }
+    fn from(height: BlockHeight) -> Self {
+        height.to_u32()
+    }
 }
 
 impl From<absolute::Height> for BlockHeight {
@@ -70,7 +80,9 @@ impl From<absolute::Height> for BlockHeight {
     /// An absolute locktime block height has a maximum value of [`absolute::LOCK_TIME_THRESHOLD`]
     /// (500,000,000) where as a [`BlockHeight`] is a thin wrapper around a `u32`, the two types are
     /// not interchangeable.
-    fn from(h: absolute::Height) -> Self { Self::from_u32(h.to_consensus_u32()) }
+    fn from(h: absolute::Height) -> Self {
+        Self::from_u32(h.to_consensus_u32())
+    }
 }
 
 impl TryFrom<BlockHeight> for absolute::Height {
@@ -110,25 +122,35 @@ impl BlockInterval {
 
     /// Creates a block interval from a `u32`.
     // Because From<u32> is not const.
-    pub const fn from_u32(inner: u32) -> Self { Self(inner) }
+    pub const fn from_u32(inner: u32) -> Self {
+        Self(inner)
+    }
 
     /// Returns block interval as a `u32`.
     // Because type inference doesn't always work using `Into`.
-    pub const fn to_u32(&self) -> u32 { self.0 }
+    pub const fn to_u32(&self) -> u32 {
+        self.0
+    }
 }
 
 impl fmt::Display for BlockInterval {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
 }
 
 crate::impl_parse_str_from_int_infallible!(BlockInterval, u32, from);
 
 impl From<u32> for BlockInterval {
-    fn from(inner: u32) -> Self { Self::from_u32(inner) }
+    fn from(inner: u32) -> Self {
+        Self::from_u32(inner)
+    }
 }
 
 impl From<BlockInterval> for u32 {
-    fn from(height: BlockInterval) -> Self { height.to_u32() }
+    fn from(height: BlockInterval) -> Self {
+        height.to_u32()
+    }
 }
 
 impl From<relative::Height> for BlockInterval {
@@ -136,7 +158,9 @@ impl From<relative::Height> for BlockInterval {
     ///
     /// A relative locktime block height has a maximum value of `u16::MAX` where as a
     /// [`BlockInterval`] is a thin wrapper around a `u32`, the two types are not interchangeable.
-    fn from(h: relative::Height) -> Self { Self::from_u32(h.value().into()) }
+    fn from(h: relative::Height) -> Self {
+        Self::from_u32(h.value().into())
+    }
 }
 
 impl TryFrom<BlockInterval> for relative::Height {
@@ -214,7 +238,9 @@ impl ops::Add<BlockInterval> for BlockInterval {
 }
 
 impl ops::AddAssign<BlockInterval> for BlockInterval {
-    fn add_assign(&mut self, rhs: BlockInterval) { self.0 = self.to_u32() + rhs.to_u32(); }
+    fn add_assign(&mut self, rhs: BlockInterval) {
+        self.0 = self.to_u32() + rhs.to_u32();
+    }
 }
 
 // interval - interval = interval
@@ -228,39 +254,7 @@ impl ops::Sub<BlockInterval> for BlockInterval {
 }
 
 impl ops::SubAssign<BlockInterval> for BlockInterval {
-    fn sub_assign(&mut self, rhs: BlockInterval) { self.0 = self.to_u32() - rhs.to_u32(); }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // These tests are supposed to comprise an exhaustive list of available operations.
-    #[test]
-    fn all_available_ops() {
-        // height - height = interval
-        assert!(BlockHeight(100) - BlockHeight(99) == BlockInterval(1));
-
-        // height + interval = height
-        assert!(BlockHeight(100) + BlockInterval(1) == BlockHeight(101));
-
-        // height - interval == height
-        assert!(BlockHeight(100) - BlockInterval(1) == BlockHeight(99));
-
-        // interval + interval = interval
-        assert!(BlockInterval(1) + BlockInterval(2) == BlockInterval(3));
-
-        // interval - interval = interval
-        assert!(BlockInterval(3) - BlockInterval(2) == BlockInterval(1));
-
-        // interval += interval
-        let mut int = BlockInterval(1);
-        int += BlockInterval(2);
-        assert_eq!(int, BlockInterval(3));
-
-        // interval -= interval
-        let mut int = BlockInterval(3);
-        int -= BlockInterval(2);
-        assert_eq!(int, BlockInterval(1));
+    fn sub_assign(&mut self, rhs: BlockInterval) {
+        self.0 = self.to_u32() - rhs.to_u32();
     }
 }

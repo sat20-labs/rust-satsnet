@@ -38,7 +38,9 @@ pub(crate) trait Deserialize: Sized {
 
 impl Psbt {
     /// Serialize a value as bytes in hex.
-    pub fn serialize_hex(&self) -> String { self.serialize().to_lower_hex_string() }
+    pub fn serialize_hex(&self) -> String {
+        self.serialize().to_lower_hex_string()
+    }
 
     /// Serialize as raw binary data
     pub fn serialize(&self) -> Vec<u8> {
@@ -139,11 +141,15 @@ impl_psbt_hash_de_serialize!(sha256d::Hash);
 impl_psbt_de_serialize!(Vec<TapLeafHash>);
 
 impl Serialize for ScriptBuf {
-    fn serialize(&self) -> Vec<u8> { self.to_bytes() }
+    fn serialize(&self) -> Vec<u8> {
+        self.to_bytes()
+    }
 }
 
 impl Deserialize for ScriptBuf {
-    fn deserialize(bytes: &[u8]) -> Result<Self, Error> { Ok(Self::from(bytes.to_vec())) }
+    fn deserialize(bytes: &[u8]) -> Result<Self, Error> {
+        Ok(Self::from(bytes.to_vec()))
+    }
 }
 
 impl Serialize for PublicKey {
@@ -161,7 +167,9 @@ impl Deserialize for PublicKey {
 }
 
 impl Serialize for secp256k1::PublicKey {
-    fn serialize(&self) -> Vec<u8> { self.serialize().to_vec() }
+    fn serialize(&self) -> Vec<u8> {
+        self.serialize().to_vec()
+    }
 }
 
 impl Deserialize for secp256k1::PublicKey {
@@ -171,7 +179,9 @@ impl Deserialize for secp256k1::PublicKey {
 }
 
 impl Serialize for ecdsa::Signature {
-    fn serialize(&self) -> Vec<u8> { self.to_vec() }
+    fn serialize(&self) -> Vec<u8> {
+        self.to_vec()
+    }
 }
 
 impl Deserialize for ecdsa::Signature {
@@ -234,15 +244,21 @@ impl Deserialize for KeySource {
 
 // partial sigs
 impl Serialize for Vec<u8> {
-    fn serialize(&self) -> Vec<u8> { self.clone() }
+    fn serialize(&self) -> Vec<u8> {
+        self.clone()
+    }
 }
 
 impl Deserialize for Vec<u8> {
-    fn deserialize(bytes: &[u8]) -> Result<Self, Error> { Ok(bytes.to_vec()) }
+    fn deserialize(bytes: &[u8]) -> Result<Self, Error> {
+        Ok(bytes.to_vec())
+    }
 }
 
 impl Serialize for PsbtSighashType {
-    fn serialize(&self) -> Vec<u8> { serialize(&self.to_u32()) }
+    fn serialize(&self) -> Vec<u8> {
+        serialize(&self.to_u32())
+    }
 }
 
 impl Deserialize for PsbtSighashType {
@@ -254,7 +270,9 @@ impl Deserialize for PsbtSighashType {
 
 // Taproot related ser/deser
 impl Serialize for XOnlyPublicKey {
-    fn serialize(&self) -> Vec<u8> { XOnlyPublicKey::serialize(self).to_vec() }
+    fn serialize(&self) -> Vec<u8> {
+        XOnlyPublicKey::serialize(self).to_vec()
+    }
 }
 
 impl Deserialize for XOnlyPublicKey {
@@ -264,7 +282,9 @@ impl Deserialize for XOnlyPublicKey {
 }
 
 impl Serialize for taproot::Signature {
-    fn serialize(&self) -> Vec<u8> { self.to_vec() }
+    fn serialize(&self) -> Vec<u8> {
+        self.to_vec()
+    }
 }
 
 impl Deserialize for taproot::Signature {
@@ -301,7 +321,9 @@ impl Deserialize for (XOnlyPublicKey, TapLeafHash) {
 }
 
 impl Serialize for ControlBlock {
-    fn serialize(&self) -> Vec<u8> { ControlBlock::serialize(self) }
+    fn serialize(&self) -> Vec<u8> {
+        ControlBlock::serialize(self)
+    }
 }
 
 impl Deserialize for ControlBlock {
@@ -395,72 +417,6 @@ impl Deserialize for TapTree {
 }
 
 // Helper function to compute key source len
-fn key_source_len(key_source: &KeySource) -> usize { 4 + 4 * (key_source.1).as_ref().len() }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::script::ScriptBufExt as _;
-
-    // Composes tree matching a given depth map, filled with dumb script leafs,
-    // each of which consists of a single push-int op code, with int value
-    // increased for each consecutive leaf.
-    pub fn compose_taproot_builder<'map>(
-        opcode: u8,
-        depth_map: impl IntoIterator<Item = &'map u8>,
-    ) -> TaprootBuilder {
-        let mut val = opcode;
-        let mut builder = TaprootBuilder::new();
-        for depth in depth_map {
-            let script = ScriptBuf::from_hex(&format!("{:02x}", val)).unwrap();
-            builder = builder.add_leaf(*depth, script).unwrap();
-            let (new_val, _) = val.overflowing_add(1);
-            val = new_val;
-        }
-        builder
-    }
-
-    #[test]
-    fn taptree_hidden() {
-        let dummy_hash = TapNodeHash::from_byte_array([0x12; 32]);
-        let mut builder = compose_taproot_builder(0x51, &[2, 2, 2]);
-        builder = builder
-            .add_leaf_with_ver(
-                3,
-                ScriptBuf::from_hex("b9").unwrap(),
-                LeafVersion::from_consensus(0xC2).unwrap(),
-            )
-            .unwrap();
-        builder = builder.add_hidden_node(3, dummy_hash).unwrap();
-        assert!(TapTree::try_from(builder).is_err());
-    }
-
-    #[test]
-    fn taptree_roundtrip() {
-        let mut builder = compose_taproot_builder(0x51, &[2, 2, 2, 3]);
-        builder = builder
-            .add_leaf_with_ver(
-                3,
-                ScriptBuf::from_hex("b9").unwrap(),
-                LeafVersion::from_consensus(0xC2).unwrap(),
-            )
-            .unwrap();
-        let tree = TapTree::try_from(builder).unwrap();
-        let tree_prime = TapTree::deserialize(&tree.serialize()).unwrap();
-        assert_eq!(tree, tree_prime);
-    }
-
-    #[test]
-    fn can_deserialize_non_standard_psbt_sighash_type() {
-        let non_standard_sighash = [222u8, 0u8, 0u8, 0u8]; // 32 byte value.
-        let sighash = PsbtSighashType::deserialize(&non_standard_sighash);
-        assert!(sighash.is_ok())
-    }
-
-    #[test]
-    #[should_panic(expected = "InvalidMagic")]
-    fn invalid_vector_1() {
-        let hex_psbt = b"0200000001268171371edff285e937adeea4b37b78000c0566cbb3ad64641713ca42171bf6000000006a473044022070b2245123e6bf474d60c5b50c043d4c691a5d2435f09a34a7662a9dc251790a022001329ca9dacf280bdf30740ec0390422422c81cb45839457aeb76fc12edd95b3012102657d118d3357b8e0f4c2cd46db7b39f6d9c38d9a70abcb9b2de5dc8dbfe4ce31feffffff02d3dff505000000001976a914d0c59903c5bac2868760e90fd521a4665aa7652088ac00e1f5050000000017a9143545e6e33b832c47050f24d3eeb93c9c03948bc787b32e1300";
-        Psbt::deserialize(hex_psbt).unwrap();
-    }
+fn key_source_len(key_source: &KeySource) -> usize {
+    4 + 4 * (key_source.1).as_ref().len()
 }

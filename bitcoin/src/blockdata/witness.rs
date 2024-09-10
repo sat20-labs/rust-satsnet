@@ -294,14 +294,20 @@ impl Witness {
     }
 
     /// Convenience method to create an array of byte-arrays from this witness.
-    pub fn to_bytes(&self) -> Vec<Vec<u8>> { self.iter().map(|s| s.to_vec()).collect() }
+    pub fn to_bytes(&self) -> Vec<Vec<u8>> {
+        self.iter().map(|s| s.to_vec()).collect()
+    }
 
     /// Convenience method to create an array of byte-arrays from this witness.
     #[deprecated(since = "TBD", note = "Use to_bytes instead")]
-    pub fn to_vec(&self) -> Vec<Vec<u8>> { self.to_bytes() }
+    pub fn to_vec(&self) -> Vec<Vec<u8>> {
+        self.to_bytes()
+    }
 
     /// Returns `true` if the witness contains no element.
-    pub fn is_empty(&self) -> bool { self.witness_elements == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.witness_elements == 0
+    }
 
     /// Returns a struct implementing [`Iterator`].
     pub fn iter(&self) -> Iter {
@@ -309,7 +315,9 @@ impl Witness {
     }
 
     /// Returns the number of elements this witness holds.
-    pub fn len(&self) -> usize { self.witness_elements }
+    pub fn len(&self) -> usize {
+        self.witness_elements
+    }
 
     /// Returns the number of bytes this witness contributes to a transactions total size.
     pub fn size(&self) -> usize {
@@ -470,13 +478,17 @@ impl Witness {
     /// This does not guarantee that this represents a P2WS [`Witness`].
     ///
     /// See [`Script::is_p2wsh`] to check whether this is actually a P2WSH witness.
-    pub fn witness_script(&self) -> Option<&Script> { self.last().map(Script::from_bytes) }
+    pub fn witness_script(&self) -> Option<&Script> {
+        self.last().map(Script::from_bytes)
+    }
 }
 
 impl Index<usize> for Witness {
     type Output = [u8];
 
-    fn index(&self, index: usize) -> &Self::Output { self.nth(index).expect("out of bounds") }
+    fn index(&self, index: usize) -> &Self::Output {
+        self.nth(index).expect("out of bounds")
+    }
 }
 
 impl<'a> Iterator for Iter<'a> {
@@ -505,7 +517,9 @@ impl<'a> IntoIterator for &'a Witness {
     type IntoIter = Iter<'a>;
     type Item = &'a [u8];
 
-    fn into_iter(self) -> Self::IntoIter { self.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 // Serde keep backward compatibility with old Vec<Vec<u8>> format
@@ -573,8 +587,9 @@ impl<'de> serde::Deserialize<'de> for Witness {
                                 &"a valid hex character",
                             ),
                         },
-                        OddLengthString(ref e) =>
-                            de::Error::invalid_length(e.length(), &"an even length string"),
+                        OddLengthString(ref e) => {
+                            de::Error::invalid_length(e.length(), &"an even length string")
+                        }
                     })?;
                     ret.push(vec);
                 }
@@ -592,336 +607,31 @@ impl<'de> serde::Deserialize<'de> for Witness {
 }
 
 impl From<Vec<Vec<u8>>> for Witness {
-    fn from(vec: Vec<Vec<u8>>) -> Self { Witness::from_slice(&vec) }
+    fn from(vec: Vec<Vec<u8>>) -> Self {
+        Witness::from_slice(&vec)
+    }
 }
 
 impl From<&[&[u8]]> for Witness {
-    fn from(slice: &[&[u8]]) -> Self { Witness::from_slice(slice) }
+    fn from(slice: &[&[u8]]) -> Self {
+        Witness::from_slice(slice)
+    }
 }
 
 impl From<&[Vec<u8>]> for Witness {
-    fn from(slice: &[Vec<u8>]) -> Self { Witness::from_slice(slice) }
+    fn from(slice: &[Vec<u8>]) -> Self {
+        Witness::from_slice(slice)
+    }
 }
 
 impl From<Vec<&[u8]>> for Witness {
-    fn from(vec: Vec<&[u8]>) -> Self { Witness::from_slice(&vec) }
+    fn from(vec: Vec<&[u8]>) -> Self {
+        Witness::from_slice(&vec)
+    }
 }
 
 impl Default for Witness {
-    fn default() -> Self { Self::new() }
-}
-
-#[cfg(test)]
-mod test {
-    use hex::test_hex_unwrap as hex;
-
-    use super::*;
-    use crate::consensus::{deserialize, serialize};
-    use crate::hex::DisplayHex;
-    use crate::sighash::EcdsaSighashType;
-    use crate::Transaction;
-
-    fn append_u32_vec(mut v: Vec<u8>, n: &[u32]) -> Vec<u8> {
-        for &num in n {
-            v.extend_from_slice(&num.to_ne_bytes());
-        }
-        v
-    }
-
-    #[test]
-    fn witness_debug_can_display_empty_instruction() {
-        let witness = Witness {
-            witness_elements: 1,
-            content: append_u32_vec(vec![], &[0]),
-            indices_start: 2,
-        };
-        println!("{:?}", witness);
-    }
-
-    #[test]
-    fn test_push() {
-        let mut witness = Witness::default();
-        assert_eq!(witness.last(), None);
-        assert_eq!(witness.second_to_last(), None);
-        assert_eq!(witness.nth(0), None);
-        assert_eq!(witness.nth(1), None);
-        assert_eq!(witness.nth(2), None);
-        assert_eq!(witness.nth(3), None);
-        witness.push(&vec![0u8]);
-        let expected = Witness {
-            witness_elements: 1,
-            content: append_u32_vec(vec![1u8, 0], &[0]),
-            indices_start: 2,
-        };
-        assert_eq!(witness, expected);
-        assert_eq!(witness.last(), Some(&[0u8][..]));
-        assert_eq!(witness.second_to_last(), None);
-        assert_eq!(witness.nth(0), Some(&[0u8][..]));
-        assert_eq!(witness.nth(1), None);
-        assert_eq!(witness.nth(2), None);
-        assert_eq!(witness.nth(3), None);
-        assert_eq!(&witness[0], &[0u8][..]);
-        witness.push(&vec![2u8, 3u8]);
-        let expected = Witness {
-            witness_elements: 2,
-            content: append_u32_vec(vec![1u8, 0, 2, 2, 3], &[0, 2]),
-            indices_start: 5,
-        };
-        assert_eq!(witness, expected);
-        assert_eq!(witness.last(), Some(&[2u8, 3u8][..]));
-        assert_eq!(witness.second_to_last(), Some(&[0u8][..]));
-        assert_eq!(witness.nth(0), Some(&[0u8][..]));
-        assert_eq!(witness.nth(1), Some(&[2u8, 3u8][..]));
-        assert_eq!(witness.nth(2), None);
-        assert_eq!(witness.nth(3), None);
-        assert_eq!(&witness[0], &[0u8][..]);
-        assert_eq!(&witness[1], &[2u8, 3u8][..]);
-        witness.push(&vec![4u8, 5u8]);
-        let expected = Witness {
-            witness_elements: 3,
-            content: append_u32_vec(vec![1u8, 0, 2, 2, 3, 2, 4, 5], &[0, 2, 5]),
-            indices_start: 8,
-        };
-        assert_eq!(witness, expected);
-        assert_eq!(witness.last(), Some(&[4u8, 5u8][..]));
-        assert_eq!(witness.second_to_last(), Some(&[2u8, 3u8][..]));
-        assert_eq!(witness.nth(0), Some(&[0u8][..]));
-        assert_eq!(witness.nth(1), Some(&[2u8, 3u8][..]));
-        assert_eq!(witness.nth(2), Some(&[4u8, 5u8][..]));
-        assert_eq!(witness.nth(3), None);
-        assert_eq!(&witness[0], &[0u8][..]);
-        assert_eq!(&witness[1], &[2u8, 3u8][..]);
-        assert_eq!(&witness[2], &[4u8, 5u8][..]);
-    }
-
-    #[test]
-    fn test_iter_len() {
-        let mut witness = Witness::default();
-        for i in 0..5 {
-            assert_eq!(witness.iter().len(), i);
-            witness.push(&vec![0u8]);
-        }
-        let mut iter = witness.iter();
-        for i in (0..=5).rev() {
-            assert_eq!(iter.len(), i);
-            iter.next();
-        }
-    }
-
-    #[test]
-    fn test_push_ecdsa_sig() {
-        // The very first signature in block 734,958
-        let sig_bytes =
-            hex!("304402207c800d698f4b0298c5aac830b822f011bb02df41eb114ade9a6702f364d5e39c0220366900d2a60cab903e77ef7dd415d46509b1f78ac78906e3296f495aa1b1b541");
-        let signature = secp256k1::ecdsa::Signature::from_der(&sig_bytes).unwrap();
-        let mut witness = Witness::default();
-        let signature = crate::ecdsa::Signature { signature, sighash_type: EcdsaSighashType::All };
-        witness.push_ecdsa_signature(signature);
-        let expected_witness = vec![hex!(
-            "304402207c800d698f4b0298c5aac830b822f011bb02df41eb114ade9a6702f364d5e39c0220366900d2a60cab903e77ef7dd415d46509b1f78ac78906e3296f495aa1b1b54101")
-            ];
-        assert_eq!(witness.to_vec(), expected_witness);
-    }
-
-    #[test]
-    fn test_witness() {
-        let w0 = hex!("03d2e15674941bad4a996372cb87e1856d3652606d98562fe39c5e9e7e413f2105");
-        let w1 = hex!("000000");
-        let witness_vec = vec![w0.clone(), w1.clone()];
-        let witness_serialized: Vec<u8> = serialize(&witness_vec);
-        let witness = Witness {
-            content: append_u32_vec(witness_serialized[1..].to_vec(), &[0, 34]),
-            witness_elements: 2,
-            indices_start: 38,
-        };
-        for (i, el) in witness.iter().enumerate() {
-            assert_eq!(witness_vec[i], el);
-        }
-        assert_eq!(witness.last(), Some(&w1[..]));
-        assert_eq!(witness.second_to_last(), Some(&w0[..]));
-        assert_eq!(witness.nth(0), Some(&w0[..]));
-        assert_eq!(witness.nth(1), Some(&w1[..]));
-        assert_eq!(witness.nth(2), None);
-        assert_eq!(&witness[0], &w0[..]);
-        assert_eq!(&witness[1], &w1[..]);
-
-        let w_into = Witness::from_slice(&witness_vec);
-        assert_eq!(w_into, witness);
-
-        assert_eq!(witness_serialized, serialize(&witness));
-    }
-
-    #[test]
-    fn test_get_tapscript() {
-        let tapscript = hex!("deadbeef");
-        let control_block = hex!("02");
-        // annex starting with 0x50 causes the branching logic.
-        let annex = hex!("50");
-
-        let witness_vec = vec![tapscript.clone(), control_block.clone()];
-        let witness_vec_annex = vec![tapscript.clone(), control_block, annex];
-
-        let witness_serialized: Vec<u8> = serialize(&witness_vec);
-        let witness_serialized_annex: Vec<u8> = serialize(&witness_vec_annex);
-
-        let witness = deserialize::<Witness>(&witness_serialized[..]).unwrap();
-        let witness_annex = deserialize::<Witness>(&witness_serialized_annex[..]).unwrap();
-
-        // With or without annex, the tapscript should be returned.
-        assert_eq!(witness.tapscript(), Some(Script::from_bytes(&tapscript[..])));
-        assert_eq!(witness_annex.tapscript(), Some(Script::from_bytes(&tapscript[..])));
-    }
-
-    #[test]
-    fn test_get_control_block() {
-        let tapscript = hex!("deadbeef");
-        let control_block = hex!("02");
-        // annex starting with 0x50 causes the branching logic.
-        let annex = hex!("50");
-
-        let witness_vec = vec![tapscript.clone(), control_block.clone()];
-        let witness_vec_annex = vec![tapscript.clone(), control_block.clone(), annex];
-
-        let witness_serialized: Vec<u8> = serialize(&witness_vec);
-        let witness_serialized_annex: Vec<u8> = serialize(&witness_vec_annex);
-
-        let witness = deserialize::<Witness>(&witness_serialized[..]).unwrap();
-        let witness_annex = deserialize::<Witness>(&witness_serialized_annex[..]).unwrap();
-
-        // With or without annex, the tapscript should be returned.
-        assert_eq!(witness.taproot_control_block(), Some(&control_block[..]));
-        assert_eq!(witness_annex.taproot_control_block(), Some(&control_block[..]));
-    }
-
-    #[test]
-    fn test_get_annex() {
-        let tapscript = hex!("deadbeef");
-        let control_block = hex!("02");
-        // annex starting with 0x50 causes the branching logic.
-        let annex = hex!("50");
-
-        let witness_vec = vec![tapscript.clone(), control_block.clone()];
-        let witness_vec_annex = vec![tapscript.clone(), control_block.clone(), annex.clone()];
-
-        let witness_serialized: Vec<u8> = serialize(&witness_vec);
-        let witness_serialized_annex: Vec<u8> = serialize(&witness_vec_annex);
-
-        let witness = deserialize::<Witness>(&witness_serialized[..]).unwrap();
-        let witness_annex = deserialize::<Witness>(&witness_serialized_annex[..]).unwrap();
-
-        // With or without annex, the tapscript should be returned.
-        assert_eq!(witness.taproot_annex(), None);
-        assert_eq!(witness_annex.taproot_annex(), Some(&annex[..]));
-
-        // Now for keyspend
-        let signature = hex!("deadbeef");
-        // annex starting with 0x50 causes the branching logic.
-        let annex = hex!("50");
-
-        let witness_vec = vec![signature.clone()];
-        let witness_vec_annex = vec![signature.clone(), annex.clone()];
-
-        let witness_serialized: Vec<u8> = serialize(&witness_vec);
-        let witness_serialized_annex: Vec<u8> = serialize(&witness_vec_annex);
-
-        let witness = deserialize::<Witness>(&witness_serialized[..]).unwrap();
-        let witness_annex = deserialize::<Witness>(&witness_serialized_annex[..]).unwrap();
-
-        // With or without annex, the tapscript should be returned.
-        assert_eq!(witness.taproot_annex(), None);
-        assert_eq!(witness_annex.taproot_annex(), Some(&annex[..]));
-    }
-
-    #[test]
-    fn test_tx() {
-        const S: &str = "02000000000102b44f26b275b8ad7b81146ba3dbecd081f9c1ea0dc05b97516f56045cfcd3df030100000000ffffffff1cb4749ae827c0b75f3d0a31e63efc8c71b47b5e3634a4c698cd53661cab09170100000000ffffffff020b3a0500000000001976a9143ea74de92762212c96f4dd66c4d72a4deb20b75788ac630500000000000016001493a8dfd1f0b6a600ab01df52b138cda0b82bb7080248304502210084622878c94f4c356ce49c8e33a063ec90f6ee9c0208540888cfab056cd1fca9022014e8dbfdfa46d318c6887afd92dcfa54510e057565e091d64d2ee3a66488f82c0121026e181ffb98ebfe5a64c983073398ea4bcd1548e7b971b4c175346a25a1c12e950247304402203ef00489a0d549114977df2820fab02df75bebb374f5eee9e615107121658cfa02204751f2d1784f8e841bff6d3bcf2396af2f1a5537c0e4397224873fbd3bfbe9cf012102ae6aa498ce2dd204e9180e71b4fb1260fe3d1a95c8025b34e56a9adf5f278af200000000";
-        let tx_bytes = hex!(S);
-        let tx: Transaction = deserialize(&tx_bytes).unwrap();
-
-        let expected_wit = ["304502210084622878c94f4c356ce49c8e33a063ec90f6ee9c0208540888cfab056cd1fca9022014e8dbfdfa46d318c6887afd92dcfa54510e057565e091d64d2ee3a66488f82c01", "026e181ffb98ebfe5a64c983073398ea4bcd1548e7b971b4c175346a25a1c12e95"];
-        for (i, wit_el) in tx.input[0].witness.iter().enumerate() {
-            assert_eq!(expected_wit[i], wit_el.to_lower_hex_string());
-        }
-        assert_eq!(expected_wit[1], tx.input[0].witness.last().unwrap().to_lower_hex_string());
-        assert_eq!(
-            expected_wit[0],
-            tx.input[0].witness.second_to_last().unwrap().to_lower_hex_string()
-        );
-        assert_eq!(expected_wit[0], tx.input[0].witness.nth(0).unwrap().to_lower_hex_string());
-        assert_eq!(expected_wit[1], tx.input[0].witness.nth(1).unwrap().to_lower_hex_string());
-        assert_eq!(None, tx.input[0].witness.nth(2));
-        assert_eq!(expected_wit[0], tx.input[0].witness[0].to_lower_hex_string());
-        assert_eq!(expected_wit[1], tx.input[0].witness[1].to_lower_hex_string());
-
-        let tx_bytes_back = serialize(&tx);
-        assert_eq!(tx_bytes_back, tx_bytes);
-    }
-
-    #[test]
-    fn fuzz_cases() {
-        let bytes = hex!("26ff0000000000c94ce592cf7a4cbb68eb00ce374300000057cd0000000000000026");
-        assert!(deserialize::<Witness>(&bytes).is_err()); // OversizedVectorAllocation
-
-        let bytes = hex!("24000000ffffffffffffffffffffffff");
-        assert!(deserialize::<Witness>(&bytes).is_err()); // OversizedVectorAllocation
-    }
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn test_serde_bincode() {
-        use bincode;
-
-        let old_witness_format = vec![vec![0u8], vec![2]];
-        let new_witness_format = Witness::from_slice(&old_witness_format);
-
-        let old = bincode::serialize(&old_witness_format).unwrap();
-        let new = bincode::serialize(&new_witness_format).unwrap();
-
-        assert_eq!(old, new);
-
-        let back: Witness = bincode::deserialize(&new).unwrap();
-        assert_eq!(new_witness_format, back);
-    }
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn test_serde_human() {
-        use serde_json;
-
-        let witness = Witness::from_slice(&[vec![0u8, 123, 75], vec![2u8, 6, 3, 7, 8]]);
-
-        let json = serde_json::to_string(&witness).unwrap();
-
-        assert_eq!(json, r#"["007b4b","0206030708"]"#);
-
-        let back: Witness = serde_json::from_str(&json).unwrap();
-        assert_eq!(witness, back);
-    }
-}
-
-#[cfg(bench)]
-mod benches {
-    use test::{black_box, Bencher};
-
-    use super::Witness;
-
-    #[bench]
-    pub fn bench_big_witness_to_vec(bh: &mut Bencher) {
-        let raw_witness = [[1u8]; 5];
-        let witness = Witness::from_slice(&raw_witness);
-
-        bh.iter(|| {
-            black_box(witness.to_vec());
-        });
-    }
-
-    #[bench]
-    pub fn bench_witness_to_vec(bh: &mut Bencher) {
-        let raw_witness = vec![vec![1u8]; 3];
-        let witness = Witness::from_slice(&raw_witness);
-
-        bh.iter(|| {
-            black_box(witness.to_vec());
-        });
+    fn default() -> Self {
+        Self::new()
     }
 }

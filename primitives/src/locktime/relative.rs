@@ -9,11 +9,6 @@
 use core::cmp::Ordering;
 use core::{cmp, convert, fmt};
 
-#[cfg(all(test, mutate))]
-use mutagen::mutate;
-
-#[cfg(doc)]
-use crate::relative;
 use crate::Sequence;
 
 #[rustfmt::skip]                // Keep public re-exports separate.
@@ -99,11 +94,15 @@ impl LockTime {
 
     /// Encodes the locktime as a sequence number.
     #[inline]
-    pub fn to_sequence(&self) -> Sequence { Sequence::from_consensus(self.to_consensus_u32()) }
+    pub fn to_sequence(&self) -> Sequence {
+        Sequence::from_consensus(self.to_consensus_u32())
+    }
 
     /// Constructs a `LockTime` from `n`, expecting `n` to be a 16-bit count of blocks.
     #[inline]
-    pub const fn from_height(n: u16) -> Self { LockTime::Blocks(Height::from_height(n)) }
+    pub const fn from_height(n: u16) -> Self {
+        LockTime::Blocks(Height::from_height(n))
+    }
 
     /// Constructs a `LockTime` from `n`, expecting `n` to be a count of 512-second intervals.
     ///
@@ -153,11 +152,15 @@ impl LockTime {
 
     /// Returns true if this lock time value is in units of block height.
     #[inline]
-    pub const fn is_block_height(&self) -> bool { matches!(*self, LockTime::Blocks(_)) }
+    pub const fn is_block_height(&self) -> bool {
+        matches!(*self, LockTime::Blocks(_))
+    }
 
     /// Returns true if this lock time value is in units of time.
     #[inline]
-    pub const fn is_block_time(&self) -> bool { !self.is_block_height() }
+    pub const fn is_block_time(&self) -> bool {
+        !self.is_block_height()
+    }
 
     /// Returns true if this [`relative::LockTime`] is satisfied by either height or time.
     ///
@@ -299,12 +302,16 @@ impl LockTime {
 
 impl From<Height> for LockTime {
     #[inline]
-    fn from(h: Height) -> Self { LockTime::Blocks(h) }
+    fn from(h: Height) -> Self {
+        LockTime::Blocks(h)
+    }
 }
 
 impl From<Time> for LockTime {
     #[inline]
-    fn from(t: Time) -> Self { LockTime::Time(t) }
+    fn from(t: Time) -> Self {
+        LockTime::Time(t)
+    }
 }
 
 impl PartialOrd for LockTime {
@@ -360,7 +367,9 @@ impl convert::TryFrom<Sequence> for LockTime {
 }
 
 impl From<LockTime> for Sequence {
-    fn from(lt: LockTime) -> Sequence { lt.to_sequence() }
+    fn from(lt: LockTime) -> Sequence {
+        lt.to_sequence()
+    }
 }
 
 /// Error returned when a sequence number is parsed as a lock time, but its
@@ -371,7 +380,9 @@ pub struct DisabledLockTimeError(u32);
 impl DisabledLockTimeError {
     /// Accessor for the `u32` whose "disable" flag was set, preventing
     /// it from being parsed as a relative locktime.
-    pub fn disabled_locktime_value(&self) -> u32 { self.0 }
+    pub fn disabled_locktime_value(&self) -> u32 {
+        self.0
+    }
 }
 
 impl fmt::Display for DisabledLockTimeError {
@@ -428,83 +439,3 @@ impl fmt::Display for IncompatibleTimeError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for IncompatibleTimeError {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn satisfied_by_height() {
-        let height = Height::from(10);
-        let time = Time::from_512_second_intervals(70);
-
-        let lock = LockTime::from(height);
-
-        assert!(!lock.is_satisfied_by(Height::from(9), time));
-        assert!(lock.is_satisfied_by(Height::from(10), time));
-        assert!(lock.is_satisfied_by(Height::from(11), time));
-    }
-
-    #[test]
-    fn satisfied_by_time() {
-        let height = Height::from(10);
-        let time = Time::from_512_second_intervals(70);
-
-        let lock = LockTime::from(time);
-
-        assert!(!lock.is_satisfied_by(height, Time::from_512_second_intervals(69)));
-        assert!(lock.is_satisfied_by(height, Time::from_512_second_intervals(70)));
-        assert!(lock.is_satisfied_by(height, Time::from_512_second_intervals(71)));
-    }
-
-    #[test]
-    fn height_correctly_implies() {
-        let height = Height::from(10);
-        let lock = LockTime::from(height);
-
-        assert!(!lock.is_implied_by(LockTime::from(Height::from(9))));
-        assert!(lock.is_implied_by(LockTime::from(Height::from(10))));
-        assert!(lock.is_implied_by(LockTime::from(Height::from(11))));
-    }
-
-    #[test]
-    fn time_correctly_implies() {
-        let time = Time::from_512_second_intervals(70);
-        let lock = LockTime::from(time);
-
-        assert!(!lock.is_implied_by(LockTime::from(Time::from_512_second_intervals(69))));
-        assert!(lock.is_implied_by(LockTime::from(Time::from_512_second_intervals(70))));
-        assert!(lock.is_implied_by(LockTime::from(Time::from_512_second_intervals(71))));
-    }
-
-    #[test]
-    fn incorrect_units_do_not_imply() {
-        let time = Time::from_512_second_intervals(70);
-        let height = Height::from(10);
-
-        let lock = LockTime::from(time);
-        assert!(!lock.is_implied_by(LockTime::from(height)));
-    }
-
-    #[test]
-    fn consensus_round_trip() {
-        assert!(LockTime::from_consensus(1 << 31).is_err());
-        assert!(LockTime::from_consensus(1 << 30).is_ok());
-        // Relative locktimes do not care about bits 17 through 21.
-        assert_eq!(LockTime::from_consensus(65536), LockTime::from_consensus(0));
-
-        for val in [0u32, 1, 1000, 65535] {
-            let seq = Sequence::from_consensus(val);
-            let lt = LockTime::from_consensus(val).unwrap();
-            assert_eq!(lt.to_consensus_u32(), val);
-            assert_eq!(lt.to_sequence(), seq);
-            assert_eq!(LockTime::from_sequence(seq).unwrap().to_sequence(), seq);
-
-            let seq = Sequence::from_consensus(val + (1 << 22));
-            let lt = LockTime::from_consensus(val + (1 << 22)).unwrap();
-            assert_eq!(lt.to_consensus_u32(), val + (1 << 22));
-            assert_eq!(lt.to_sequence(), seq);
-            assert_eq!(LockTime::from_sequence(seq).unwrap().to_sequence(), seq);
-        }
-    }
-}

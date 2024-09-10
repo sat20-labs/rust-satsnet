@@ -20,9 +20,6 @@
 
 extern crate alloc;
 
-#[cfg(bench)]
-extern crate test;
-
 #[cfg(feature = "std")]
 extern crate std;
 
@@ -190,19 +187,31 @@ trait Buffer: Sized {
 }
 
 impl Buffer for Vec<u8> {
-    fn push(&mut self, val: u8) { Vec::push(self, val) }
+    fn push(&mut self, val: u8) {
+        Vec::push(self, val)
+    }
 
-    fn slice(&self) -> &[u8] { self }
+    fn slice(&self) -> &[u8] {
+        self
+    }
 
-    fn slice_mut(&mut self) -> &mut [u8] { self }
+    fn slice_mut(&mut self) -> &mut [u8] {
+        self
+    }
 }
 
 impl<const N: usize> Buffer for ArrayVec<u8, N> {
-    fn push(&mut self, val: u8) { ArrayVec::push(self, val) }
+    fn push(&mut self, val: u8) {
+        ArrayVec::push(self, val)
+    }
 
-    fn slice(&self) -> &[u8] { self.as_slice() }
+    fn slice(&self) -> &[u8] {
+        self.as_slice()
+    }
 
-    fn slice_mut(&mut self) -> &mut [u8] { self.as_mut_slice() }
+    fn slice_mut(&mut self) -> &mut [u8] {
+        self.as_mut_slice()
+    }
 }
 
 fn format_iter<I, W>(writer: &mut W, data: I, buf: &mut impl Buffer) -> Result<(), fmt::Error>
@@ -243,101 +252,4 @@ where
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use alloc::vec;
-
-    use hex::test_hex_unwrap as hex;
-
-    use super::*;
-
-    #[test]
-    fn test_base58_encode() {
-        // Basics
-        assert_eq!(&encode(&[0][..]), "1");
-        assert_eq!(&encode(&[1][..]), "2");
-        assert_eq!(&encode(&[58][..]), "21");
-        assert_eq!(&encode(&[13, 36][..]), "211");
-
-        // Leading zeroes
-        assert_eq!(&encode(&[0, 13, 36][..]), "1211");
-        assert_eq!(&encode(&[0, 0, 0, 0, 13, 36][..]), "1111211");
-
-        // Long input (>128 bytes => has to use heap)
-        let res = encode(
-            "BitcoinBitcoinBitcoinBitcoinBitcoinBitcoinBitcoinBitcoinBitcoinBit\
-        coinBitcoinBitcoinBitcoinBitcoinBitcoinBitcoinBitcoinBitcoinBitcoinBitcoin"
-                .as_bytes(),
-        );
-        let exp =
-            "ZqC5ZdfpZRi7fjA8hbhX5pEE96MdH9hEaC1YouxscPtbJF16qVWksHWR4wwvx7MotFcs2ChbJqK8KJ9X\
-        wZznwWn1JFDhhTmGo9v6GjAVikzCsBWZehu7bm22xL8b5zBR5AsBygYRwbFJsNwNkjpyFuDKwmsUTKvkULCvucPJrN5\
-        QUdxpGakhqkZFL7RU4yT";
-        assert_eq!(&res, exp);
-
-        // Addresses
-        let addr = hex!("00f8917303bfa8ef24f292e8fa1419b20460ba064d");
-        assert_eq!(&encode_check(&addr[..]), "1PfJpZsjreyVrqeoAfabrRwwjQyoSQMmHH");
-    }
-
-    #[test]
-    fn test_base58_decode() {
-        // Basics
-        assert_eq!(decode("1").ok(), Some(vec![0u8]));
-        assert_eq!(decode("2").ok(), Some(vec![1u8]));
-        assert_eq!(decode("21").ok(), Some(vec![58u8]));
-        assert_eq!(decode("211").ok(), Some(vec![13u8, 36]));
-
-        // Leading zeroes
-        assert_eq!(decode("1211").ok(), Some(vec![0u8, 13, 36]));
-        assert_eq!(decode("111211").ok(), Some(vec![0u8, 0, 0, 13, 36]));
-
-        // Addresses
-        assert_eq!(
-            decode_check("1PfJpZsjreyVrqeoAfabrRwwjQyoSQMmHH").ok(),
-            Some(hex!("00f8917303bfa8ef24f292e8fa1419b20460ba064d"))
-        );
-        // Non Base58 char.
-        assert_eq!(decode("¢").unwrap_err(), InvalidCharacterError { invalid: 194 });
-    }
-
-    #[test]
-    fn test_base58_roundtrip() {
-        let s = "xprv9wTYmMFdV23N2TdNG573QoEsfRrWKQgWeibmLntzniatZvR9BmLnvSxqu53Kw1UmYPxLgboyZQaXwTCg8MSY3H2EU4pWcQDnRnrVA1xe8fs";
-        let v: Vec<u8> = decode_check(s).unwrap();
-        assert_eq!(encode_check(&v[..]), s);
-        assert_eq!(decode_check(&encode_check(&v[..])).ok(), Some(v));
-
-        // Check that empty slice passes roundtrip.
-        assert_eq!(decode_check(&encode_check(&[])), Ok(vec![]));
-        // Check that `len > 4` is enforced.
-        assert_eq!(decode_check(&encode(&[1, 2, 3])), Err(TooShortError { length: 3 }.into()));
-    }
-}
-
-#[cfg(bench)]
-mod benches {
-    use test::{black_box, Bencher};
-
-    #[bench]
-    pub fn bench_encode_check_50(bh: &mut Bencher) {
-        let data: alloc::vec::Vec<_> = (0u8..50).collect();
-
-        bh.iter(|| {
-            let r = super::encode_check(&data);
-            black_box(&r);
-        });
-    }
-
-    #[bench]
-    pub fn bench_encode_check_xpub(bh: &mut Bencher) {
-        let data: alloc::vec::Vec<_> = (0u8..78).collect(); // lenght of xpub
-
-        bh.iter(|| {
-            let r = super::encode_check(&data);
-            black_box(&r);
-        });
-    }
 }

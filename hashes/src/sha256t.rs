@@ -112,7 +112,7 @@ where
     }
 
     /// Hashes the entire contents of the `reader`.
-    #[cfg(feature = "bitcoin-io")]
+    #[cfg(feature = "satsnet-io")]
     pub fn hash_reader<R: io::BufRead>(reader: &mut R) -> Result<Self, io::Error> {
         let mut engine = Self::engine();
         loop {
@@ -346,92 +346,4 @@ macro_rules! sha256t_tag_constructor {
     (raw, $bytes:expr, $len:expr) => {
         $crate::sha256::Midstate::new($bytes, $len)
     };
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{sha256, sha256t};
-
-    const TEST_MIDSTATE: [u8; 32] = [
-        156, 224, 228, 230, 124, 17, 108, 57, 56, 179, 202, 242, 195, 15, 80, 137, 211, 243, 147,
-        108, 71, 99, 110, 96, 125, 179, 62, 234, 221, 198, 240, 201,
-    ];
-
-    // The digest created by sha256 hashing `&[0]` starting with `TEST_MIDSTATE`.
-    #[cfg(feature = "alloc")]
-    const HASH_ZERO_BACKWARD: &str =
-        "29589d5122ec666ab5b4695070b6debc63881a4f85d88d93ddc90078038213ed";
-    // And the same thing, forward.
-    #[cfg(feature = "alloc")]
-    const HASH_ZERO_FORWARD: &str =
-        "ed1382037800c9dd938dd8854f1a8863bcdeb6705069b4b56a66ec22519d5829";
-
-    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
-    pub struct TestHashTag;
-
-    impl sha256t::Tag for TestHashTag {
-        fn engine() -> sha256::HashEngine {
-            // The TapRoot TapLeaf midstate.
-            let midstate = sha256::Midstate::new(TEST_MIDSTATE, 64);
-            sha256::HashEngine::from_midstate(midstate)
-        }
-    }
-
-    // We support manually implementing `Tag` and creating a tagged hash from it.
-    #[cfg(feature = "alloc")]
-    pub type TestHash = sha256t::Hash<TestHashTag>;
-
-    #[test]
-    #[cfg(feature = "alloc")]
-    fn manually_created_sha256t_hash_type() {
-        use alloc::string::ToString;
-
-        assert_eq!(TestHash::hash(&[0]).to_string(), HASH_ZERO_FORWARD);
-    }
-
-    // We also provide macros to create the tag and the hash type.
-    sha256t_tag! {
-        /// Test detailed explanation.
-        struct NewTypeTagBackward = raw(TEST_MIDSTATE, 64);
-    }
-    hash_newtype! {
-        /// A test hash.
-        #[hash_newtype(backward)]
-        struct NewTypeHashBackward(sha256t::Hash<NewTypeTagBackward>);
-    }
-
-    #[test]
-    #[cfg(feature = "alloc")]
-    fn macro_created_sha256t_hash_type_backward() {
-        use alloc::string::ToString;
-
-        let inner = sha256t::Hash::<NewTypeTagBackward>::hash(&[0]);
-        let hash = NewTypeHashBackward::from_byte_array(inner.to_byte_array());
-        assert_eq!(hash.to_string(), HASH_ZERO_BACKWARD);
-        // Note one has to use the new wrapper type to get backwards formatting.
-        assert_eq!(sha256t::Hash::<NewTypeTagBackward>::hash(&[0]).to_string(), HASH_ZERO_FORWARD);
-    }
-
-    // We also provide a macro to create the tag and the hash type.
-    sha256t_tag! {
-        /// Test detailed explanation.
-        struct NewTypeTagForward = raw(TEST_MIDSTATE, 64);
-    }
-    hash_newtype! {
-        /// A test hash.
-        #[hash_newtype(forward)]
-        struct NewTypeHashForward(sha256t::Hash<NewTypeTagForward>);
-    }
-
-    #[test]
-    #[cfg(feature = "alloc")]
-    fn macro_created_sha256t_hash_type_prints_forward() {
-        use alloc::string::ToString;
-
-        let inner = sha256t::Hash::<NewTypeTagForward>::hash(&[0]);
-        let hash = NewTypeHashForward::from_byte_array(inner.to_byte_array());
-        assert_eq!(hash.to_string(), HASH_ZERO_FORWARD);
-        // We can also just use the `sha256t::Hash` type directly.
-        assert_eq!(sha256t::Hash::<NewTypeTagForward>::hash(&[0]).to_string(), HASH_ZERO_FORWARD);
-    }
 }

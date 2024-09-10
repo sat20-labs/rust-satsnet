@@ -144,11 +144,15 @@ macro_rules! hash_type {
 
         impl Hash {
             /// Constructs a new engine.
-            pub fn engine() -> HashEngine { Default::default() }
+            pub fn engine() -> HashEngine {
+                Default::default()
+            }
 
             /// Hashes some bytes.
             #[allow(clippy::self_named_constructors)] // Hash is a noun and a verb.
-            pub fn hash(data: &[u8]) -> Self { <Self as $crate::GeneralHash>::hash(data) }
+            pub fn hash(data: &[u8]) -> Self {
+                <Self as $crate::GeneralHash>::hash(data)
+            }
 
             /// Hashes all the byte slices retrieved from the iterator together.
             pub fn hash_byte_chunks<B, I>(byte_slices: I) -> Self
@@ -160,7 +164,7 @@ macro_rules! hash_type {
             }
 
             /// Hashes the entire contents of the `reader`.
-            #[cfg(feature = "bitcoin-io")]
+            #[cfg(feature = "satsnet-io")]
             pub fn hash_reader<R: io::BufRead>(reader: &mut R) -> Result<Self, io::Error> {
                 <Self as $crate::GeneralHash>::hash_reader(reader)
             }
@@ -177,7 +181,9 @@ macro_rules! hash_type_no_default {
         pub struct Hash([u8; $bits / 8]);
 
         impl Hash {
-            const fn internal_new(arr: [u8; $bits / 8]) -> Self { Hash(arr) }
+            const fn internal_new(arr: [u8; $bits / 8]) -> Self {
+                Hash(arr)
+            }
 
             /// Zero cost conversion between a fixed length byte array shared reference and
             /// a shared reference to this Hash type.
@@ -194,7 +200,9 @@ macro_rules! hash_type_no_default {
             }
 
             /// Produces a hash from the current state of a given engine.
-            pub fn from_engine(e: HashEngine) -> Hash { from_engine(e) }
+            pub fn from_engine(e: HashEngine) -> Hash {
+                from_engine(e)
+            }
 
             /// Copies a byte slice into a hash object.
             pub fn from_slice(
@@ -210,10 +218,14 @@ macro_rules! hash_type_no_default {
             }
 
             /// Returns the underlying byte array.
-            pub const fn to_byte_array(self) -> [u8; $bits / 8] { self.0 }
+            pub const fn to_byte_array(self) -> [u8; $bits / 8] {
+                self.0
+            }
 
             /// Returns a reference to the underlying byte array.
-            pub const fn as_byte_array(&self) -> &[u8; $bits / 8] { &self.0 }
+            pub const fn as_byte_array(&self) -> &[u8; $bits / 8] {
+                &self.0
+            }
 
             /// Constructs a hash from the underlying byte array.
             pub const fn from_byte_array(bytes: [u8; $bits / 8]) -> Self {

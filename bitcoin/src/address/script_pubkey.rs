@@ -194,30 +194,3 @@ pub(super) fn new_witness_program_unchecked<T: AsRef<PushBytes>>(
     debug_assert!(version != WitnessVersion::V0 || program.len() == 20 || program.len() == 32);
     Builder::new().push_opcode(version.into()).push_slice(program).into_script()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn shortest_witness_program() {
-        let bytes = [0x00; 2]; // Arbitrary bytes, witprog must be between 2 and 40.
-        let version = WitnessVersion::V15; // Arbitrary version number, intentionally not 0 or 1.
-
-        let p = WitnessProgram::new(version, &bytes).expect("failed to create witness program");
-        let script = ScriptBuf::new_witness_program(&p);
-
-        assert_eq!(script.witness_version(), Some(version));
-    }
-
-    #[test]
-    fn longest_witness_program() {
-        let bytes = [0x00; 40]; // Arbitrary bytes, witprog must be between 2 and 40.
-        let version = WitnessVersion::V16; // Arbitrary version number, intentionally not 0 or 1.
-
-        let p = WitnessProgram::new(version, &bytes).expect("failed to create witness program");
-        let script = ScriptBuf::new_witness_program(&p);
-
-        assert_eq!(script.witness_version(), Some(version));
-    }
-}

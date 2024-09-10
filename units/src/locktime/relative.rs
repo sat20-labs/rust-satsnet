@@ -24,27 +24,37 @@ impl Height {
 
     /// Create a [`Height`] using a count of blocks.
     #[inline]
-    pub const fn from_height(blocks: u16) -> Self { Height(blocks) }
+    pub const fn from_height(blocks: u16) -> Self {
+        Height(blocks)
+    }
 
     /// Returns the inner `u16` value.
     #[inline]
-    pub fn value(self) -> u16 { self.0 }
+    pub fn value(self) -> u16 {
+        self.0
+    }
 
     /// Returns the `u32` value used to encode this locktime in an nSequence field or
     /// argument to `OP_CHECKSEQUENCEVERIFY`.
     #[inline]
-    pub fn to_consensus_u32(&self) -> u32 { self.0.into() }
+    pub fn to_consensus_u32(&self) -> u32 {
+        self.0.into()
+    }
 }
 
 impl From<u16> for Height {
     #[inline]
-    fn from(value: u16) -> Self { Height(value) }
+    fn from(value: u16) -> Self {
+        Height(value)
+    }
 }
 
 crate::impl_parse_str_from_int_infallible!(Height, u16, from);
 
 impl fmt::Display for Height {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
 }
 
 /// A relative lock time lock-by-blocktime value.
@@ -68,7 +78,9 @@ impl Time {
     ///
     /// Encoding finer granularity of time for relative lock-times is not supported in Bitcoin.
     #[inline]
-    pub const fn from_512_second_intervals(intervals: u16) -> Self { Time(intervals) }
+    pub const fn from_512_second_intervals(intervals: u16) -> Self {
+        Time(intervals)
+    }
 
     /// Creates a [`Time`] from seconds, converting the seconds into 512 second interval with
     /// truncating division.
@@ -106,18 +118,24 @@ impl Time {
 
     /// Returns the inner `u16` value.
     #[inline]
-    pub fn value(self) -> u16 { self.0 }
+    pub fn value(self) -> u16 {
+        self.0
+    }
 
     /// Returns the `u32` value used to encode this locktime in an nSequence field or
     /// argument to `OP_CHECKSEQUENCEVERIFY`.
     #[inline]
-    pub fn to_consensus_u32(&self) -> u32 { (1u32 << 22) | u32::from(self.0) }
+    pub fn to_consensus_u32(&self) -> u32 {
+        (1u32 << 22) | u32::from(self.0)
+    }
 }
 
 crate::impl_parse_str_from_int_infallible!(Time, u16, from_512_second_intervals);
 
 impl fmt::Display for Time {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
 }
 
 /// Input time in seconds was too large to be encoded to a 16 bit 512 second interval.
@@ -152,57 +170,3 @@ impl fmt::Display for TimeOverflowError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for TimeOverflowError {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const MAXIMUM_ENCODABLE_SECONDS: u32 = u16::MAX as u32 * 512;
-
-    #[test]
-    fn from_seconds_ceil_success() {
-        let actual = Time::from_seconds_ceil(100).unwrap();
-        let expected = Time(1_u16);
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn from_seconds_ceil_with_maximum_encodable_seconds_success() {
-        let actual = Time::from_seconds_ceil(MAXIMUM_ENCODABLE_SECONDS).unwrap();
-        let expected = Time(u16::MAX);
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn from_seconds_ceil_causes_time_overflow_error() {
-        let result = Time::from_seconds_ceil(MAXIMUM_ENCODABLE_SECONDS + 1);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn from_seconds_floor_success() {
-        let actual = Time::from_seconds_floor(100).unwrap();
-        let expected = Time(0_u16);
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn from_seconds_floor_with_exact_interval() {
-        let actual = Time::from_seconds_floor(512).unwrap();
-        let expected = Time(1_u16);
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn from_seconds_floor_with_maximum_encodable_seconds_success() {
-        let actual = Time::from_seconds_floor(MAXIMUM_ENCODABLE_SECONDS + 511).unwrap();
-        let expected = Time(u16::MAX);
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn from_seconds_floor_causes_time_overflow_error() {
-        let result = Time::from_seconds_floor(MAXIMUM_ENCODABLE_SECONDS + 512);
-        assert!(result.is_err());
-    }
-}

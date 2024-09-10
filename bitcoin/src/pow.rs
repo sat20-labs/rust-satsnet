@@ -10,8 +10,6 @@ use core::{cmp, fmt};
 
 use internals::impl_to_hex_from_lower_hex;
 use io::{BufRead, Write};
-#[cfg(all(test, mutate))]
-use mutagen::mutate;
 use units::parse::{self, ParseIntError, PrefixedHexError, UnprefixedHexError};
 
 use crate::block::{BlockHash, Header};
@@ -45,25 +43,33 @@ macro_rules! do_impl {
             #[doc = stringify!($ty)]
             #[doc = "` from a big-endian byte array."]
             #[inline]
-            pub fn from_be_bytes(bytes: [u8; 32]) -> $ty { $ty(U256::from_be_bytes(bytes)) }
+            pub fn from_be_bytes(bytes: [u8; 32]) -> $ty {
+                $ty(U256::from_be_bytes(bytes))
+            }
 
             #[doc = "Creates `"]
             #[doc = stringify!($ty)]
             #[doc = "` from a little-endian byte array."]
             #[inline]
-            pub fn from_le_bytes(bytes: [u8; 32]) -> $ty { $ty(U256::from_le_bytes(bytes)) }
+            pub fn from_le_bytes(bytes: [u8; 32]) -> $ty {
+                $ty(U256::from_le_bytes(bytes))
+            }
 
             #[doc = "Converts `"]
             #[doc = stringify!($ty)]
             #[doc = "` to a big-endian byte array."]
             #[inline]
-            pub fn to_be_bytes(self) -> [u8; 32] { self.0.to_be_bytes() }
+            pub fn to_be_bytes(self) -> [u8; 32] {
+                self.0.to_be_bytes()
+            }
 
             #[doc = "Converts `"]
             #[doc = stringify!($ty)]
             #[doc = "` to a little-endian byte array."]
             #[inline]
-            pub fn to_le_bytes(self) -> [u8; 32] { self.0.to_le_bytes() }
+            pub fn to_le_bytes(self) -> [u8; 32] {
+                self.0.to_le_bytes()
+            }
         }
 
         impl fmt::Display for $ty {
@@ -98,7 +104,9 @@ pub struct Work(U256);
 
 impl Work {
     /// Converts this [`Work`] to [`Target`].
-    pub fn to_target(self) -> Target { Target(self.0.inverse()) }
+    pub fn to_target(self) -> Target {
+        Target(self.0.inverse())
+    }
 
     /// Returns log2 of this work.
     ///
@@ -106,19 +114,25 @@ impl Work {
     /// used mainly for informative and displaying purposes, similarly to Bitcoin Core's
     /// `log2_work` output in its logs.
     #[cfg(feature = "std")]
-    pub fn log2(self) -> f64 { self.0.to_f64().log2() }
+    pub fn log2(self) -> f64 {
+        self.0.to_f64().log2()
+    }
 }
 do_impl!(Work);
 impl_to_hex_from_lower_hex!(Work, |_| 64);
 
 impl Add for Work {
     type Output = Work;
-    fn add(self, rhs: Self) -> Self { Work(self.0 + rhs.0) }
+    fn add(self, rhs: Self) -> Self {
+        Work(self.0 + rhs.0)
+    }
 }
 
 impl Sub for Work {
     type Output = Work;
-    fn sub(self, rhs: Self) -> Self { Work(self.0 - rhs.0) }
+    fn sub(self, rhs: Self) -> Self {
+        Work(self.0 - rhs.0)
+    }
 }
 
 /// A 256 bit integer representing target.
@@ -229,7 +243,9 @@ impl Target {
     /// "Work" is defined as the work done to mine a block with this target value (recorded in the
     /// block header in compact form as nBits). This is not the same as the difficulty to mine a
     /// block with this target (see `Self::difficulty`).
-    pub fn to_work(self) -> Work { Work(self.0.inverse()) }
+    pub fn to_work(self) -> Work {
+        Work(self.0.inverse())
+    }
 
     /// Computes the popular "difficulty" measure for mining.
     ///
@@ -287,7 +303,9 @@ impl Target {
     /// Computes the minimum valid [`Target`] threshold allowed for a block in which a difficulty
     /// adjustment occurs.
     #[deprecated(since = "0.32.0", note = "use min_transition_threshold instead")]
-    pub fn min_difficulty_transition_threshold(&self) -> Self { self.min_transition_threshold() }
+    pub fn min_difficulty_transition_threshold(&self) -> Self {
+        self.min_transition_threshold()
+    }
 
     /// Computes the maximum valid [`Target`] threshold allowed for a block in which a difficulty
     /// adjustment occurs.
@@ -305,7 +323,9 @@ impl Target {
     /// # Returns
     ///
     /// In line with Bitcoin Core this function may return a target value of zero.
-    pub fn min_transition_threshold(&self) -> Self { Self(self.0 >> 2) }
+    pub fn min_transition_threshold(&self) -> Self {
+        Self(self.0 >> 2)
+    }
 
     /// Computes the maximum valid [`Target`] threshold allowed for a block in which a difficulty
     /// adjustment occurs.
@@ -332,7 +352,9 @@ impl Target {
     ///
     /// The return value should be checked against [`Params::max_attainable_target`] or use one of
     /// the `Target::MAX_ATTAINABLE_FOO` constants.
-    pub fn max_transition_threshold_unchecked(&self) -> Self { Self(self.0 << 2) }
+    pub fn max_transition_threshold_unchecked(&self) -> Self {
+        Self(self.0 << 2)
+    }
 }
 do_impl!(Target);
 impl_to_hex_from_lower_hex!(Target, |_| 64);
@@ -431,7 +453,9 @@ define_extension_trait! {
 }
 
 impl From<CompactTarget> for Target {
-    fn from(c: CompactTarget) -> Self { Target::from_compact(c) }
+    fn from(c: CompactTarget) -> Self {
+        Target::from_compact(c)
+    }
 }
 
 impl Encodable for CompactTarget {
@@ -552,22 +576,34 @@ impl U256 {
     }
 
     #[cfg_attr(all(test, mutate), mutate)]
-    fn is_zero(&self) -> bool { self.0 == 0 && self.1 == 0 }
+    fn is_zero(&self) -> bool {
+        self.0 == 0 && self.1 == 0
+    }
 
     #[cfg_attr(all(test, mutate), mutate)]
-    fn is_one(&self) -> bool { self.0 == 0 && self.1 == 1 }
+    fn is_one(&self) -> bool {
+        self.0 == 0 && self.1 == 1
+    }
 
     #[cfg_attr(all(test, mutate), mutate)]
-    fn is_max(&self) -> bool { self.0 == u128::MAX && self.1 == u128::MAX }
+    fn is_max(&self) -> bool {
+        self.0 == u128::MAX && self.1 == u128::MAX
+    }
 
     /// Returns the low 32 bits.
-    fn low_u32(&self) -> u32 { self.low_u128() as u32 }
+    fn low_u32(&self) -> u32 {
+        self.low_u128() as u32
+    }
 
     /// Returns the low 64 bits.
-    fn low_u64(&self) -> u64 { self.low_u128() as u64 }
+    fn low_u64(&self) -> u64 {
+        self.low_u128() as u64
+    }
 
     /// Returns the low 128 bits.
-    fn low_u128(&self) -> u128 { self.1 }
+    fn low_u128(&self) -> u128 {
+        self.1
+    }
 
     /// Returns this `U256` as a `u128` saturating to `u128::MAX` if `self` is too big.
     // Matagen gives false positive because >= and > both return u128::MAX
@@ -740,15 +776,6 @@ impl U256 {
         ret
     }
 
-    /// Wrapping (modular) multiplication. Computes `self * rhs`, wrapping around at the boundary of
-    /// the type.
-    #[must_use = "this returns the result of the operation, without modifying the original"]
-    #[cfg(test)]
-    fn wrapping_mul(self, rhs: Self) -> Self {
-        let (ret, _overflow) = self.overflowing_mul(rhs);
-        ret
-    }
-
     /// Returns `self` incremented by 1 wrapping around at the boundary of the type.
     #[must_use = "this returns the result of the increment, without modifying the original"]
     #[cfg_attr(all(test, mutate), mutate)]
@@ -878,7 +905,9 @@ impl U256 {
 }
 
 impl<T: Into<u128>> From<T> for U256 {
-    fn from(x: T) -> Self { U256(0, x.into()) }
+    fn from(x: T) -> Self {
+        U256(0, x.into())
+    }
 }
 
 impl Add for U256 {
@@ -910,28 +939,38 @@ impl Mul for U256 {
 
 impl Div for U256 {
     type Output = Self;
-    fn div(self, rhs: Self) -> Self { self.div_rem(rhs).0 }
+    fn div(self, rhs: Self) -> Self {
+        self.div_rem(rhs).0
+    }
 }
 
 impl Rem for U256 {
     type Output = Self;
-    fn rem(self, rhs: Self) -> Self { self.div_rem(rhs).1 }
+    fn rem(self, rhs: Self) -> Self {
+        self.div_rem(rhs).1
+    }
 }
 
 impl Not for U256 {
     type Output = Self;
 
-    fn not(self) -> Self { U256(!self.0, !self.1) }
+    fn not(self) -> Self {
+        U256(!self.0, !self.1)
+    }
 }
 
 impl Shl<u32> for U256 {
     type Output = Self;
-    fn shl(self, shift: u32) -> U256 { self.wrapping_shl(shift) }
+    fn shl(self, shift: u32) -> U256 {
+        self.wrapping_shl(shift)
+    }
 }
 
 impl Shr<u32> for U256 {
     type Output = Self;
-    fn shr(self, shift: u32) -> U256 { self.wrapping_shr(shift) }
+    fn shr(self, shift: u32) -> U256 {
+        self.wrapping_shr(shift)
+    }
 }
 
 impl fmt::Display for U256 {
@@ -945,7 +984,9 @@ impl fmt::Display for U256 {
 }
 
 impl fmt::Debug for U256 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:#x}", self) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:#x}", self)
+    }
 }
 
 macro_rules! impl_hex {
@@ -969,7 +1010,9 @@ impl crate::serde::Serialize for U256 {
         struct DisplayHex(U256);
 
         impl fmt::Display for DisplayHex {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:x}", self.0) }
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "{:x}", self.0)
+            }
         }
 
         if serializer.is_human_readable() {
@@ -1069,964 +1112,6 @@ impl kani::Arbitrary for U256 {
         let high: u128 = kani::any();
         let low: u128 = kani::any();
         Self(high, low)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    impl From<u64> for Target {
-        fn from(x: u64) -> Self { Self(U256::from(x)) }
-    }
-
-    impl From<u32> for Target {
-        fn from(x: u32) -> Self { Self(U256::from(x)) }
-    }
-
-    impl<T: Into<u128>> From<T> for Work {
-        fn from(x: T) -> Self { Self(U256::from(x)) }
-    }
-
-    impl U256 {
-        fn bit_at(&self, index: usize) -> bool {
-            if index > 255 {
-                panic!("index out of bounds");
-            }
-
-            let word = if index < 128 { self.1 } else { self.0 };
-            (word & (1 << (index % 128))) != 0
-        }
-    }
-
-    impl U256 {
-        /// Creates a U256 from a big-endian array of u64's
-        fn from_array(a: [u64; 4]) -> Self {
-            let mut ret = U256::ZERO;
-            ret.0 = (a[0] as u128) << 64 ^ (a[1] as u128);
-            ret.1 = (a[2] as u128) << 64 ^ (a[3] as u128);
-            ret
-        }
-    }
-
-    #[test]
-    fn u256_num_bits() {
-        assert_eq!(U256::from(255_u64).bits(), 8);
-        assert_eq!(U256::from(256_u64).bits(), 9);
-        assert_eq!(U256::from(300_u64).bits(), 9);
-        assert_eq!(U256::from(60000_u64).bits(), 16);
-        assert_eq!(U256::from(70000_u64).bits(), 17);
-
-        let u = U256::from(u128::MAX) << 1;
-        assert_eq!(u.bits(), 129);
-
-        // Try to read the following lines out loud quickly
-        let mut shl = U256::from(70000_u64);
-        shl = shl << 100;
-        assert_eq!(shl.bits(), 117);
-        shl = shl << 100;
-        assert_eq!(shl.bits(), 217);
-        shl = shl << 100;
-        assert_eq!(shl.bits(), 0);
-    }
-
-    #[test]
-    fn u256_bit_at() {
-        assert!(!U256::from(10_u64).bit_at(0));
-        assert!(U256::from(10_u64).bit_at(1));
-        assert!(!U256::from(10_u64).bit_at(2));
-        assert!(U256::from(10_u64).bit_at(3));
-        assert!(!U256::from(10_u64).bit_at(4));
-
-        let u = U256(0xa000_0000_0000_0000_0000_0000_0000_0000, 0);
-        assert!(u.bit_at(255));
-        assert!(!u.bit_at(254));
-        assert!(u.bit_at(253));
-        assert!(!u.bit_at(252));
-    }
-
-    #[test]
-    fn u256_lower_hex() {
-        assert_eq!(
-            format!("{:x}", U256::from(0xDEADBEEF_u64)),
-            "00000000000000000000000000000000000000000000000000000000deadbeef",
-        );
-        assert_eq!(
-            format!("{:#x}", U256::from(0xDEADBEEF_u64)),
-            "0x00000000000000000000000000000000000000000000000000000000deadbeef",
-        );
-        assert_eq!(
-            format!("{:x}", U256::MAX),
-            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-        );
-        assert_eq!(
-            format!("{:#x}", U256::MAX),
-            "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-        );
-    }
-
-    #[test]
-    fn u256_upper_hex() {
-        assert_eq!(
-            format!("{:X}", U256::from(0xDEADBEEF_u64)),
-            "00000000000000000000000000000000000000000000000000000000DEADBEEF",
-        );
-        assert_eq!(
-            format!("{:#X}", U256::from(0xDEADBEEF_u64)),
-            "0x00000000000000000000000000000000000000000000000000000000DEADBEEF",
-        );
-        assert_eq!(
-            format!("{:X}", U256::MAX),
-            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-        );
-        assert_eq!(
-            format!("{:#X}", U256::MAX),
-            "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-        );
-    }
-
-    #[test]
-    fn u256_display() {
-        assert_eq!(format!("{}", U256::from(100_u32)), "100",);
-        assert_eq!(format!("{}", U256::ZERO), "0",);
-        assert_eq!(format!("{}", U256::from(u64::MAX)), format!("{}", u64::MAX),);
-        assert_eq!(
-            format!("{}", U256::MAX),
-            "115792089237316195423570985008687907853269984665640564039457584007913129639935",
-        );
-    }
-
-    macro_rules! check_format {
-        ($($test_name:ident, $val:literal, $format_string:literal, $expected:literal);* $(;)?) => {
-            $(
-                #[test]
-                fn $test_name() {
-                    assert_eq!(format!($format_string, U256::from($val)), $expected);
-                }
-            )*
-        }
-    }
-    check_format! {
-        check_fmt_0, 0_u32, "{}", "0";
-        check_fmt_1, 0_u32, "{:2}", " 0";
-        check_fmt_2, 0_u32, "{:02}", "00";
-
-        check_fmt_3, 1_u32, "{}", "1";
-        check_fmt_4, 1_u32, "{:2}", " 1";
-        check_fmt_5, 1_u32, "{:02}", "01";
-
-        check_fmt_10, 10_u32, "{}", "10";
-        check_fmt_11, 10_u32, "{:2}", "10";
-        check_fmt_12, 10_u32, "{:02}", "10";
-        check_fmt_13, 10_u32, "{:3}", " 10";
-        check_fmt_14, 10_u32, "{:03}", "010";
-
-        check_fmt_20, 1_u32, "{:<2}", "1 ";
-        check_fmt_21, 1_u32, "{:<02}", "01";
-        check_fmt_22, 1_u32, "{:>2}", " 1"; // This is default but check it anyways.
-        check_fmt_23, 1_u32, "{:>02}", "01";
-        check_fmt_24, 1_u32, "{:^3}", " 1 ";
-        check_fmt_25, 1_u32, "{:^03}", "001";
-        // Sanity check, for integral types precision is ignored.
-        check_fmt_30, 0_u32, "{:.1}", "0";
-        check_fmt_31, 0_u32, "{:4.1}", "   0";
-        check_fmt_32, 0_u32, "{:04.1}", "0000";
-    }
-
-    #[test]
-    fn u256_comp() {
-        let small = U256::from_array([0, 0, 0, 10]);
-        let big = U256::from_array([0, 0, 0x0209_E737_8231_E632, 0x8C8C_3EE7_0C64_4118]);
-        let bigger = U256::from_array([0, 0, 0x0209_E737_8231_E632, 0x9C8C_3EE7_0C64_4118]);
-        let biggest = U256::from_array([1, 0, 0x0209_E737_8231_E632, 0x5C8C_3EE7_0C64_4118]);
-
-        assert!(small < big);
-        assert!(big < bigger);
-        assert!(bigger < biggest);
-        assert!(bigger <= biggest);
-        assert!(biggest <= biggest);
-        assert!(bigger >= big);
-        assert!(bigger >= small);
-        assert!(small <= small);
-    }
-
-    const WANT: U256 =
-        U256(0x1bad_cafe_dead_beef_deaf_babe_2bed_feed, 0xbaad_f00d_defa_ceda_11fe_d2ba_d1c0_ffe0);
-
-    #[rustfmt::skip]
-    const BE_BYTES: [u8; 32] = [
-        0x1b, 0xad, 0xca, 0xfe, 0xde, 0xad, 0xbe, 0xef, 0xde, 0xaf, 0xba, 0xbe, 0x2b, 0xed, 0xfe, 0xed,
-        0xba, 0xad, 0xf0, 0x0d, 0xde, 0xfa, 0xce, 0xda, 0x11, 0xfe, 0xd2, 0xba, 0xd1, 0xc0, 0xff, 0xe0,
-    ];
-
-    #[rustfmt::skip]
-    const LE_BYTES: [u8; 32] = [
-        0xe0, 0xff, 0xc0, 0xd1, 0xba, 0xd2, 0xfe, 0x11, 0xda, 0xce, 0xfa, 0xde, 0x0d, 0xf0, 0xad, 0xba,
-        0xed, 0xfe, 0xed, 0x2b, 0xbe, 0xba, 0xaf, 0xde, 0xef, 0xbe, 0xad, 0xde, 0xfe, 0xca, 0xad, 0x1b,
-    ];
-
-    // Sanity check that we have the bytes in the correct big-endian order.
-    #[test]
-    fn sanity_be_bytes() {
-        let mut out = [0_u8; 32];
-        out[..16].copy_from_slice(&WANT.0.to_be_bytes());
-        out[16..].copy_from_slice(&WANT.1.to_be_bytes());
-        assert_eq!(out, BE_BYTES);
-    }
-
-    // Sanity check that we have the bytes in the correct little-endian order.
-    #[test]
-    fn sanity_le_bytes() {
-        let mut out = [0_u8; 32];
-        out[..16].copy_from_slice(&WANT.1.to_le_bytes());
-        out[16..].copy_from_slice(&WANT.0.to_le_bytes());
-        assert_eq!(out, LE_BYTES);
-    }
-
-    #[test]
-    fn u256_to_be_bytes() {
-        assert_eq!(WANT.to_be_bytes(), BE_BYTES);
-    }
-
-    #[test]
-    fn u256_from_be_bytes() {
-        assert_eq!(U256::from_be_bytes(BE_BYTES), WANT);
-    }
-
-    #[test]
-    fn u256_to_le_bytes() {
-        assert_eq!(WANT.to_le_bytes(), LE_BYTES);
-    }
-
-    #[test]
-    fn u256_from_le_bytes() {
-        assert_eq!(U256::from_le_bytes(LE_BYTES), WANT);
-    }
-
-    #[test]
-    fn u256_from_u8() {
-        let u = U256::from(0xbe_u8);
-        assert_eq!(u, U256(0, 0xbe));
-    }
-
-    #[test]
-    fn u256_from_u16() {
-        let u = U256::from(0xbeef_u16);
-        assert_eq!(u, U256(0, 0xbeef));
-    }
-
-    #[test]
-    fn u256_from_u32() {
-        let u = U256::from(0xdeadbeef_u32);
-        assert_eq!(u, U256(0, 0xdeadbeef));
-    }
-
-    #[test]
-    fn u256_from_u64() {
-        let u = U256::from(0xdead_beef_cafe_babe_u64);
-        assert_eq!(u, U256(0, 0xdead_beef_cafe_babe));
-    }
-
-    #[test]
-    fn u256_from_u128() {
-        let u = U256::from(0xdead_beef_cafe_babe_0123_4567_89ab_cdefu128);
-        assert_eq!(u, U256(0, 0xdead_beef_cafe_babe_0123_4567_89ab_cdef));
-    }
-
-    macro_rules! test_from_unsigned_integer_type {
-        ($($test_name:ident, $ty:ident);* $(;)?) => {
-            $(
-                #[test]
-                fn $test_name() {
-                    // Internal representation is big-endian.
-                    let want = U256(0, 0xAB);
-
-                    let x = 0xAB as $ty;
-                    let got = U256::from(x);
-
-                    assert_eq!(got, want);
-                }
-            )*
-        }
-    }
-    test_from_unsigned_integer_type! {
-        from_unsigned_integer_type_u8, u8;
-        from_unsigned_integer_type_u16, u16;
-        from_unsigned_integer_type_u32, u32;
-        from_unsigned_integer_type_u64, u64;
-        from_unsigned_integer_type_u128, u128;
-    }
-
-    #[test]
-    fn u256_from_be_array_u64() {
-        let array = [
-            0x1bad_cafe_dead_beef,
-            0xdeaf_babe_2bed_feed,
-            0xbaad_f00d_defa_ceda,
-            0x11fe_d2ba_d1c0_ffe0,
-        ];
-
-        let uint = U256::from_array(array);
-        assert_eq!(uint, WANT);
-    }
-
-    #[test]
-    fn u256_shift_left() {
-        let u = U256::from(1_u32);
-        assert_eq!(u << 0, u);
-        assert_eq!(u << 1, U256::from(2_u64));
-        assert_eq!(u << 63, U256::from(0x8000_0000_0000_0000_u64));
-        assert_eq!(u << 64, U256::from_array([0, 0, 0x0000_0000_0000_0001, 0]));
-        assert_eq!(u << 127, U256(0, 0x8000_0000_0000_0000_0000_0000_0000_0000));
-        assert_eq!(u << 128, U256(1, 0));
-
-        let x = U256(0, 0x8000_0000_0000_0000_0000_0000_0000_0000);
-        assert_eq!(x << 1, U256(1, 0));
-    }
-
-    #[test]
-    fn u256_shift_right() {
-        let u = U256(1, 0);
-        assert_eq!(u >> 0, u);
-        assert_eq!(u >> 1, U256(0, 0x8000_0000_0000_0000_0000_0000_0000_0000));
-        assert_eq!(u >> 127, U256(0, 2));
-        assert_eq!(u >> 128, U256(0, 1));
-    }
-
-    #[test]
-    fn u256_arithmetic() {
-        let init = U256::from(0xDEAD_BEEF_DEAD_BEEF_u64);
-        let copy = init;
-
-        let add = init.wrapping_add(copy);
-        assert_eq!(add, U256::from_array([0, 0, 1, 0xBD5B_7DDF_BD5B_7DDE]));
-        // Bitshifts
-        let shl = add << 88;
-        assert_eq!(shl, U256::from_array([0, 0x01BD_5B7D, 0xDFBD_5B7D_DE00_0000, 0]));
-        let shr = shl >> 40;
-        assert_eq!(shr, U256::from_array([0, 0, 0x0001_BD5B_7DDF_BD5B, 0x7DDE_0000_0000_0000]));
-        // Increment
-        let mut incr = shr;
-        incr = incr.wrapping_inc();
-        assert_eq!(incr, U256::from_array([0, 0, 0x0001_BD5B_7DDF_BD5B, 0x7DDE_0000_0000_0001]));
-        // Subtraction
-        let sub = incr.wrapping_sub(init);
-        assert_eq!(sub, U256::from_array([0, 0, 0x0001_BD5B_7DDF_BD5A, 0x9F30_4110_2152_4112]));
-        // Multiplication
-        let (mult, _) = sub.mul_u64(300);
-        assert_eq!(mult, U256::from_array([0, 0, 0x0209_E737_8231_E632, 0x8C8C_3EE7_0C64_4118]));
-        // Division
-        assert_eq!(U256::from(105_u32) / U256::from(5_u32), U256::from(21_u32));
-        let div = mult / U256::from(300_u32);
-        assert_eq!(div, U256::from_array([0, 0, 0x0001_BD5B_7DDF_BD5A, 0x9F30_4110_2152_4112]));
-
-        assert_eq!(U256::from(105_u32) % U256::from(5_u32), U256::ZERO);
-        assert_eq!(U256::from(35498456_u32) % U256::from(3435_u32), U256::from(1166_u32));
-        let rem_src = mult.wrapping_mul(U256::from(39842_u32)).wrapping_add(U256::from(9054_u32));
-        assert_eq!(rem_src % U256::from(39842_u32), U256::from(9054_u32));
-    }
-
-    #[test]
-    fn u256_bit_inversion() {
-        let v = U256(1, 0);
-        let want = U256(
-            0xffff_ffff_ffff_ffff_ffff_ffff_ffff_fffe,
-            0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff,
-        );
-        assert_eq!(!v, want);
-
-        let v = U256(0x0c0c_0c0c_0c0c_0c0c_0c0c_0c0c_0c0c_0c0c, 0xeeee_eeee_eeee_eeee);
-        let want = U256(
-            0xf3f3_f3f3_f3f3_f3f3_f3f3_f3f3_f3f3_f3f3,
-            0xffff_ffff_ffff_ffff_1111_1111_1111_1111,
-        );
-        assert_eq!(!v, want);
-    }
-
-    #[test]
-    fn u256_mul_u64_by_one() {
-        let v = U256::from(0xDEAD_BEEF_DEAD_BEEF_u64);
-        assert_eq!(v, v.mul_u64(1_u64).0);
-    }
-
-    #[test]
-    fn u256_mul_u64_by_zero() {
-        let v = U256::from(0xDEAD_BEEF_DEAD_BEEF_u64);
-        assert_eq!(U256::ZERO, v.mul_u64(0_u64).0);
-    }
-
-    #[test]
-    fn u256_mul_u64() {
-        let u64_val = U256::from(0xDEAD_BEEF_DEAD_BEEF_u64);
-
-        let u96_res = u64_val.mul_u64(0xFFFF_FFFF).0;
-        let u128_res = u96_res.mul_u64(0xFFFF_FFFF).0;
-        let u160_res = u128_res.mul_u64(0xFFFF_FFFF).0;
-        let u192_res = u160_res.mul_u64(0xFFFF_FFFF).0;
-        let u224_res = u192_res.mul_u64(0xFFFF_FFFF).0;
-        let u256_res = u224_res.mul_u64(0xFFFF_FFFF).0;
-
-        assert_eq!(u96_res, U256::from_array([0, 0, 0xDEAD_BEEE, 0xFFFF_FFFF_2152_4111]));
-        assert_eq!(
-            u128_res,
-            U256::from_array([0, 0, 0xDEAD_BEEE_2152_4110, 0x2152_4111_DEAD_BEEF])
-        );
-        assert_eq!(
-            u160_res,
-            U256::from_array([0, 0xDEAD_BEED, 0x42A4_8222_0000_0001, 0xBD5B_7DDD_2152_4111])
-        );
-        assert_eq!(
-            u192_res,
-            U256::from_array([
-                0,
-                0xDEAD_BEEC_63F6_C334,
-                0xBD5B_7DDF_BD5B_7DDB,
-                0x63F6_C333_DEAD_BEEF
-            ])
-        );
-        assert_eq!(
-            u224_res,
-            U256::from_array([
-                0xDEAD_BEEB,
-                0x8549_0448_5964_BAAA,
-                0xFFFF_FFFB_A69B_4558,
-                0x7AB6_FBBB_2152_4111
-            ])
-        );
-        assert_eq!(
-            u256_res,
-            U256(
-                0xDEAD_BEEA_A69B_455C_D41B_B662_A69B_4550,
-                0xA69B_455C_D41B_B662_A69B_4555_DEAD_BEEF,
-            )
-        );
-    }
-
-    #[test]
-    fn u256_addition() {
-        let x = U256::from(u128::MAX);
-        let (add, overflow) = x.overflowing_add(U256::ONE);
-        assert!(!overflow);
-        assert_eq!(add, U256(1, 0));
-
-        let (add, _) = add.overflowing_add(U256::ONE);
-        assert_eq!(add, U256(1, 1));
-    }
-
-    #[test]
-    fn u256_subtraction() {
-        let (sub, overflow) = U256::ONE.overflowing_sub(U256::ONE);
-        assert!(!overflow);
-        assert_eq!(sub, U256::ZERO);
-
-        let x = U256(1, 0);
-        let (sub, overflow) = x.overflowing_sub(U256::ONE);
-        assert!(!overflow);
-        assert_eq!(sub, U256::from(u128::MAX));
-    }
-
-    #[test]
-    fn u256_multiplication() {
-        let u64_val = U256::from(0xDEAD_BEEF_DEAD_BEEF_u64);
-
-        let u128_res = u64_val.wrapping_mul(u64_val);
-
-        assert_eq!(u128_res, U256(0, 0xC1B1_CD13_A4D1_3D46_048D_1354_216D_A321));
-
-        let u256_res = u128_res.wrapping_mul(u128_res);
-
-        assert_eq!(
-            u256_res,
-            U256(
-                0x928D_92B4_D7F5_DF33_4AFC_FF6F_0375_C608,
-                0xF5CF_7F36_18C2_C886_F4E1_66AA_D40D_0A41,
-            )
-        );
-    }
-
-    #[test]
-    fn u256_multiplication_bits_in_each_word() {
-        // Put a digit in the least significant bit of each 64 bit word.
-        let u = 1_u128 << 64 | 1_u128;
-        let x = U256(u, u);
-
-        // Put a digit in the second least significant bit of each 64 bit word.
-        let u = 2_u128 << 64 | 2_u128;
-        let y = U256(u, u);
-
-        let (got, overflow) = x.overflowing_mul(y);
-
-        let want = U256(
-            0x0000_0000_0000_0008_0000_0000_0000_0008,
-            0x0000_0000_0000_0006_0000_0000_0000_0004,
-        );
-        assert!(!overflow);
-        assert_eq!(got, want)
-    }
-
-    #[test]
-    fn u256_increment() {
-        let mut val = U256(
-            0xEFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF,
-            0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFE,
-        );
-        val = val.wrapping_inc();
-        assert_eq!(
-            val,
-            U256(
-                0xEFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF,
-                0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF,
-            )
-        );
-        val = val.wrapping_inc();
-        assert_eq!(
-            val,
-            U256(
-                0xF000_0000_0000_0000_0000_0000_0000_0000,
-                0x0000_0000_0000_0000_0000_0000_0000_0000,
-            )
-        );
-
-        assert_eq!(U256::MAX.wrapping_inc(), U256::ZERO);
-    }
-
-    #[test]
-    fn u256_extreme_bitshift() {
-        // Shifting a u64 by 64 bits gives an undefined value, so make sure that
-        // we're doing the Right Thing here
-        let init = U256::from(0xDEAD_BEEF_DEAD_BEEF_u64);
-
-        assert_eq!(init << 64, U256(0, 0xDEAD_BEEF_DEAD_BEEF_0000_0000_0000_0000));
-        let add = (init << 64).wrapping_add(init);
-        assert_eq!(add, U256(0, 0xDEAD_BEEF_DEAD_BEEF_DEAD_BEEF_DEAD_BEEF));
-        assert_eq!(add >> 0, U256(0, 0xDEAD_BEEF_DEAD_BEEF_DEAD_BEEF_DEAD_BEEF));
-        assert_eq!(add << 0, U256(0, 0xDEAD_BEEF_DEAD_BEEF_DEAD_BEEF_DEAD_BEEF));
-        assert_eq!(add >> 64, U256(0, 0x0000_0000_0000_0000_DEAD_BEEF_DEAD_BEEF));
-        assert_eq!(
-            add << 64,
-            U256(0xDEAD_BEEF_DEAD_BEEF, 0xDEAD_BEEF_DEAD_BEEF_0000_0000_0000_0000)
-        );
-    }
-
-    #[test]
-    fn u256_to_from_hex_roundtrips() {
-        let val = U256(
-            0xDEAD_BEEA_A69B_455C_D41B_B662_A69B_4550,
-            0xA69B_455C_D41B_B662_A69B_4555_DEAD_BEEF,
-        );
-        let hex = format!("0x{:x}", val);
-        let got = U256::from_hex(&hex).expect("failed to parse hex");
-        assert_eq!(got, val);
-    }
-
-    #[test]
-    fn u256_to_from_unprefixed_hex_roundtrips() {
-        let val = U256(
-            0xDEAD_BEEA_A69B_455C_D41B_B662_A69B_4550,
-            0xA69B_455C_D41B_B662_A69B_4555_DEAD_BEEF,
-        );
-        let hex = format!("{:x}", val);
-        let got = U256::from_unprefixed_hex(&hex).expect("failed to parse hex");
-        assert_eq!(got, val);
-    }
-
-    #[test]
-    fn u256_from_hex_32_characters_long() {
-        let hex = "a69b455cd41bb662a69b4555deadbeef";
-        let want = U256(0x00, 0xA69B_455C_D41B_B662_A69B_4555_DEAD_BEEF);
-        let got = U256::from_unprefixed_hex(hex).expect("failed to parse hex");
-        assert_eq!(got, want);
-    }
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn u256_serde() {
-        let check = |uint, hex| {
-            let json = format!("\"{}\"", hex);
-            assert_eq!(::serde_json::to_string(&uint).unwrap(), json);
-            assert_eq!(::serde_json::from_str::<U256>(&json).unwrap(), uint);
-
-            let bin_encoded = bincode::serialize(&uint).unwrap();
-            let bin_decoded: U256 = bincode::deserialize(&bin_encoded).unwrap();
-            assert_eq!(bin_decoded, uint);
-        };
-
-        check(U256::ZERO, "0000000000000000000000000000000000000000000000000000000000000000");
-        check(
-            U256::from(0xDEADBEEF_u32),
-            "00000000000000000000000000000000000000000000000000000000deadbeef",
-        );
-        check(
-            U256::from_array([0xdd44, 0xcc33, 0xbb22, 0xaa11]),
-            "000000000000dd44000000000000cc33000000000000bb22000000000000aa11",
-        );
-        check(U256::MAX, "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        check(
-            U256(
-                0xDEAD_BEEA_A69B_455C_D41B_B662_A69B_4550,
-                0xA69B_455C_D41B_B662_A69B_4555_DEAD_BEEF,
-            ),
-            "deadbeeaa69b455cd41bb662a69b4550a69b455cd41bb662a69b4555deadbeef",
-        );
-
-        assert!(::serde_json::from_str::<U256>(
-            "\"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffg\""
-        )
-        .is_err()); // invalid char
-        assert!(::serde_json::from_str::<U256>(
-            "\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\""
-        )
-        .is_err()); // invalid length
-        assert!(::serde_json::from_str::<U256>(
-            "\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\""
-        )
-        .is_err()); // invalid length
-    }
-
-    #[test]
-    fn u256_is_max_correct_negative() {
-        let tc = [U256::ZERO, U256::ONE, U256::from(u128::MAX)];
-        for t in tc {
-            assert!(!t.is_max())
-        }
-    }
-
-    #[test]
-    fn u256_is_max_correct_positive() {
-        assert!(U256::MAX.is_max());
-
-        let u = u128::MAX;
-        assert!(((U256::from(u) << 128) + U256::from(u)).is_max());
-    }
-
-    #[test]
-    fn compact_target_from_hex_lower() {
-        let target = CompactTarget::from_hex("0x010034ab").unwrap();
-        assert_eq!(target, CompactTarget::from_consensus(0x010034ab));
-    }
-
-    #[test]
-    fn compact_target_from_hex_upper() {
-        let target = CompactTarget::from_hex("0X010034AB").unwrap();
-        assert_eq!(target, CompactTarget::from_consensus(0x010034ab));
-    }
-
-    #[test]
-    fn compact_target_from_unprefixed_hex_lower() {
-        let target = CompactTarget::from_unprefixed_hex("010034ab").unwrap();
-        assert_eq!(target, CompactTarget::from_consensus(0x010034ab));
-    }
-
-    #[test]
-    fn compact_target_from_unprefixed_hex_upper() {
-        let target = CompactTarget::from_unprefixed_hex("010034AB").unwrap();
-        assert_eq!(target, CompactTarget::from_consensus(0x010034ab));
-    }
-
-    #[test]
-    fn compact_target_from_hex_invalid_hex_should_err() {
-        let hex = "0xzbf9";
-        let result = CompactTarget::from_hex(hex);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn compact_target_lower_hex_and_upper_hex() {
-        assert_eq!(format!("{:08x}", CompactTarget::from_consensus(0x01D0F456)), "01d0f456");
-        assert_eq!(format!("{:08X}", CompactTarget::from_consensus(0x01d0f456)), "01D0F456");
-    }
-
-    #[test]
-    fn compact_target_from_upwards_difficulty_adjustment() {
-        let params = Params::new(crate::Network::Signet);
-        let starting_bits = CompactTarget::from_consensus(503543726); // Genesis compact target on Signet
-        let start_time: u64 = 1598918400; // Genesis block unix time
-        let end_time: u64 = 1599332177; // Block 2015 unix time
-        let timespan = end_time - start_time; // Faster than expected
-        let adjustment = CompactTarget::from_next_work_required(starting_bits, timespan, &params);
-        let adjustment_bits = CompactTarget::from_consensus(503394215); // Block 2016 compact target
-        assert_eq!(adjustment, adjustment_bits);
-    }
-
-    #[test]
-    fn compact_target_from_downwards_difficulty_adjustment() {
-        let params = Params::new(crate::Network::Signet);
-        let starting_bits = CompactTarget::from_consensus(503394215); // Block 2016 compact target
-        let start_time: u64 = 1599332844; // Block 2016 unix time
-        let end_time: u64 = 1600591200; // Block 4031 unix time
-        let timespan = end_time - start_time; // Slower than expected
-        let adjustment = CompactTarget::from_next_work_required(starting_bits, timespan, &params);
-        let adjustment_bits = CompactTarget::from_consensus(503397348); // Block 4032 compact target
-        assert_eq!(adjustment, adjustment_bits);
-    }
-
-    #[test]
-    fn compact_target_from_upwards_difficulty_adjustment_using_headers() {
-        use crate::block::Version;
-        use crate::constants::genesis_block;
-        use crate::TxMerkleNode;
-        let params = Params::new(crate::Network::Signet);
-        let epoch_start = genesis_block(&params).header;
-
-        // Block 2015, the only information used are `bits` and `time`
-        let current = Header {
-            version: Version::ONE,
-            prev_blockhash: BlockHash::all_zeros(),
-            merkle_root: TxMerkleNode::from_byte_array([0; 32]),
-            time: 1599332177,
-            bits: epoch_start.bits,
-            nonce: epoch_start.nonce,
-        };
-        let adjustment =
-            CompactTarget::from_header_difficulty_adjustment(epoch_start, current, params);
-        let adjustment_bits = CompactTarget::from_consensus(503394215); // Block 2016 compact target
-        assert_eq!(adjustment, adjustment_bits);
-    }
-
-    #[test]
-    fn compact_target_from_downwards_difficulty_adjustment_using_headers() {
-        use crate::block::Version;
-        use crate::TxMerkleNode;
-        let params = Params::new(crate::Network::Signet);
-        let starting_bits = CompactTarget::from_consensus(503394215); // Block 2016 compact target
-
-        // Block 2016, the only information used is `time`
-        let epoch_start = Header {
-            version: Version::ONE,
-            prev_blockhash: BlockHash::all_zeros(),
-            merkle_root: TxMerkleNode::from_byte_array([0; 32]),
-            time: 1599332844,
-            bits: starting_bits,
-            nonce: 0,
-        };
-
-        // Block 4031, the only information used are `bits` and `time`
-        let current = Header {
-            version: Version::ONE,
-            prev_blockhash: BlockHash::all_zeros(),
-            merkle_root: TxMerkleNode::from_byte_array([0; 32]),
-            time: 1600591200,
-            bits: starting_bits,
-            nonce: 0,
-        };
-        let adjustment =
-            CompactTarget::from_header_difficulty_adjustment(epoch_start, current, params);
-        let adjustment_bits = CompactTarget::from_consensus(503397348); // Block 4032 compact target
-        assert_eq!(adjustment, adjustment_bits);
-    }
-
-    #[test]
-    fn compact_target_from_maximum_upward_difficulty_adjustment() {
-        let params = Params::new(crate::Network::Signet);
-        let starting_bits = CompactTarget::from_consensus(503403001);
-        let timespan = (0.2 * params.pow_target_timespan as f64) as u64;
-        let got = CompactTarget::from_next_work_required(starting_bits, timespan, params);
-        let want =
-            Target::from_compact(starting_bits).min_transition_threshold().to_compact_lossy();
-        assert_eq!(got, want);
-    }
-
-    #[test]
-    fn compact_target_from_minimum_downward_difficulty_adjustment() {
-        let params = Params::new(crate::Network::Signet);
-        let starting_bits = CompactTarget::from_consensus(403403001); // High difficulty for Signet
-        let timespan = 5 * params.pow_target_timespan; // Really slow.
-        let got = CompactTarget::from_next_work_required(starting_bits, timespan, &params);
-        let want =
-            Target::from_compact(starting_bits).max_transition_threshold(params).to_compact_lossy();
-        assert_eq!(got, want);
-    }
-
-    #[test]
-    fn compact_target_from_adjustment_is_max_target() {
-        let params = Params::new(crate::Network::Signet);
-        let starting_bits = CompactTarget::from_consensus(503543726); // Genesis compact target on Signet
-        let timespan = 5 * params.pow_target_timespan; // Really slow.
-        let got = CompactTarget::from_next_work_required(starting_bits, timespan, &params);
-        let want = params.max_attainable_target.to_compact_lossy();
-        assert_eq!(got, want);
-    }
-
-    #[test]
-    fn target_from_compact() {
-        // (nBits, target)
-        let tests = [
-            (0x0100_3456_u32, 0x00_u64), // High bit set.
-            (0x0112_3456_u32, 0x12_u64),
-            (0x0200_8000_u32, 0x80_u64),
-            (0x0500_9234_u32, 0x9234_0000_u64),
-            (0x0492_3456_u32, 0x00_u64), // High bit set (0x80 in 0x92).
-            (0x0412_3456_u32, 0x1234_5600_u64), // Inverse of above; no high bit.
-        ];
-
-        for (n_bits, target) in tests {
-            let want = Target::from(target);
-            let got = Target::from_compact(CompactTarget::from_consensus(n_bits));
-            assert_eq!(got, want);
-        }
-    }
-
-    #[test]
-    fn target_is_met_by_for_target_equals_hash() {
-        let hash = "ef537f25c895bfa782526529a9b63d97aa631564d5d789c2b765448c8635fb6c"
-            .parse::<BlockHash>()
-            .expect("failed to parse block hash");
-        let target = Target(U256::from_le_bytes(hash.to_byte_array()));
-        assert!(target.is_met_by(hash));
-    }
-
-    #[test]
-    fn max_target_from_compact() {
-        // The highest possible target is defined as 0x1d00ffff
-        let bits = 0x1d00ffff_u32;
-        let want = Target::MAX;
-        let got = Target::from_compact(CompactTarget::from_consensus(bits));
-        assert_eq!(got, want)
-    }
-
-    #[test]
-    fn target_difficulty_float() {
-        let params = Params::new(crate::Network::Bitcoin);
-
-        assert_eq!(Target::MAX.difficulty_float(&params), 1.0_f64);
-        assert_eq!(
-            Target::from_compact(CompactTarget::from_consensus(0x1c00ffff_u32))
-                .difficulty_float(&params),
-            256.0_f64
-        );
-        assert_eq!(
-            Target::from_compact(CompactTarget::from_consensus(0x1b00ffff_u32))
-                .difficulty_float(&params),
-            65536.0_f64
-        );
-        assert_eq!(
-            Target::from_compact(CompactTarget::from_consensus(0x1a00f3a2_u32))
-                .difficulty_float(&params),
-            17628585.065897066_f64
-        );
-    }
-
-    #[test]
-    fn roundtrip_compact_target() {
-        let consensus = 0x1d00_ffff;
-        let compact = CompactTarget::from_consensus(consensus);
-        let t = Target::from_compact(CompactTarget::from_consensus(consensus));
-        assert_eq!(t, Target::from(compact)); // From/Into sanity check.
-
-        let back = t.to_compact_lossy();
-        assert_eq!(back, compact); // From/Into sanity check.
-
-        assert_eq!(back.to_consensus(), consensus);
-    }
-
-    #[test]
-    fn roundtrip_target_work() {
-        let target = Target::from(0xdeadbeef_u32);
-        let work = target.to_work();
-        let back = work.to_target();
-        assert_eq!(back, target)
-    }
-
-    #[cfg(feature = "std")]
-    #[test]
-    fn work_log2() {
-        // Compare work log2 to historical Bitcoin Core values found in Core logs.
-        let tests: &[(u128, f64)] = &[
-            // (chainwork, core log2)                // height
-            (0x200020002, 33.000022),                // 1
-            (0xa97d67041c5e51596ee7, 79.405055),     // 308004
-            (0x1dc45d79394baa8ab18b20, 84.895644),   // 418141
-            (0x8c85acb73287e335d525b98, 91.134654),  // 596624
-            (0x2ef447e01d1642c40a184ada, 93.553183), // 738965
-        ];
-
-        for &(chainwork, core_log2) in tests {
-            // Core log2 in the logs is rounded to 6 decimal places.
-            let log2 = (Work::from(chainwork).log2() * 1e6).round() / 1e6;
-            assert_eq!(log2, core_log2)
-        }
-
-        assert_eq!(Work(U256::ONE).log2(), 0.0);
-        assert_eq!(Work(U256::MAX).log2(), 256.0);
-    }
-
-    #[test]
-    fn u256_zero_min_max_inverse() {
-        assert_eq!(U256::MAX.inverse(), U256::ONE);
-        assert_eq!(U256::ONE.inverse(), U256::MAX);
-        assert_eq!(U256::ZERO.inverse(), U256::MAX);
-    }
-
-    #[test]
-    fn u256_max_min_inverse_roundtrip() {
-        let max = U256::MAX;
-
-        for min in [U256::ZERO, U256::ONE].iter() {
-            // lower target means more work required.
-            assert_eq!(Target(max).to_work(), Work(U256::ONE));
-            assert_eq!(Target(*min).to_work(), Work(max));
-
-            assert_eq!(Work(max).to_target(), Target(U256::ONE));
-            assert_eq!(Work(*min).to_target(), Target(max));
-        }
-    }
-
-    #[test]
-    fn u256_wrapping_add_wraps_at_boundary() {
-        assert_eq!(U256::MAX.wrapping_add(U256::ONE), U256::ZERO);
-        assert_eq!(U256::MAX.wrapping_add(U256::from(2_u8)), U256::ONE);
-    }
-
-    #[test]
-    fn u256_wrapping_sub_wraps_at_boundary() {
-        assert_eq!(U256::ZERO.wrapping_sub(U256::ONE), U256::MAX);
-        assert_eq!(U256::ONE.wrapping_sub(U256::from(2_u8)), U256::MAX);
-    }
-
-    #[test]
-    fn mul_u64_overflows() {
-        let (_, overflow) = U256::MAX.mul_u64(2);
-        assert!(overflow, "max * 2 should overflow");
-    }
-
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic]
-    fn u256_overflowing_addition_panics() { let _ = U256::MAX + U256::ONE; }
-
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic]
-    fn u256_overflowing_subtraction_panics() { let _ = U256::ZERO - U256::ONE; }
-
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic]
-    fn u256_multiplication_by_max_panics() { let _ = U256::MAX * U256::MAX; }
-
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic]
-    fn work_overflowing_addition_panics() { let _ = Work(U256::MAX) + Work(U256::ONE); }
-
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic]
-    fn work_overflowing_subtraction_panics() { let _ = Work(U256::ZERO) - Work(U256::ONE); }
-
-    #[test]
-    fn u256_to_f64() {
-        assert_eq!(U256::ZERO.to_f64(), 0.0_f64);
-        assert_eq!(U256::ONE.to_f64(), 1.0_f64);
-        assert_eq!(U256::MAX.to_f64(), 1.157920892373162e77_f64);
-        assert_eq!((U256::MAX >> 1).to_f64(), 5.78960446186581e76_f64);
-        assert_eq!((U256::MAX >> 128).to_f64(), 3.402823669209385e38_f64);
-        assert_eq!((U256::MAX >> (256 - 54)).to_f64(), 1.8014398509481984e16_f64);
-        // 53 bits and below should not use exponents
-        assert_eq!((U256::MAX >> (256 - 53)).to_f64(), 9007199254740991.0_f64);
-        assert_eq!((U256::MAX >> (256 - 32)).to_f64(), 4294967295.0_f64);
-        assert_eq!((U256::MAX >> (256 - 16)).to_f64(), 65535.0_f64);
-        assert_eq!((U256::MAX >> (256 - 8)).to_f64(), 255.0_f64);
     }
 }
 

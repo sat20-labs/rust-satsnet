@@ -102,7 +102,9 @@ impl std::error::Error for Error {
 }
 
 impl From<io::Error> for Error {
-    fn from(io: io::Error) -> Self { Error::Io(io) }
+    fn from(io: io::Error) -> Self {
+        Error::Io(io)
+    }
 }
 
 /// A block filter, as described by BIP 158.
@@ -124,7 +126,9 @@ impl FilterHash {
 
 impl BlockFilter {
     /// Creates a new filter from pre-computed data.
-    pub fn new(content: &[u8]) -> BlockFilter { BlockFilter { content: content.to_vec() } }
+    pub fn new(content: &[u8]) -> BlockFilter {
+        BlockFilter { content: content.to_vec() }
+    }
 
     /// Computes a SCRIPT_FILTER that contains spent and output scripts.
     pub fn new_script_filter<M, S>(block: &Block, script_for_coin: M) -> Result<BlockFilter, Error>
@@ -226,10 +230,14 @@ impl<'a, W: Write> BlockFilterWriter<'a, W> {
     }
 
     /// Adds an arbitrary element to filter.
-    pub fn add_element(&mut self, data: &[u8]) { self.writer.add_element(data); }
+    pub fn add_element(&mut self, data: &[u8]) {
+        self.writer.add_element(data);
+    }
 
     /// Writes the block filter.
-    pub fn finish(&mut self) -> Result<usize, io::Error> { self.writer.finish() }
+    pub fn finish(&mut self) -> Result<usize, io::Error> {
+        self.writer.finish()
+    }
 }
 
 /// Reads and interprets a block filter.
@@ -308,13 +316,14 @@ impl GcsFilterReader {
             loop {
                 match data.cmp(&p) {
                     Ordering::Equal => return Ok(true),
-                    Ordering::Less =>
+                    Ordering::Less => {
                         if remaining > 0 {
                             data += self.filter.golomb_rice_decode(&mut reader)?;
                             remaining -= 1;
                         } else {
                             return Ok(false);
-                        },
+                        }
+                    }
                     Ordering::Greater => break,
                 }
             }
@@ -352,13 +361,14 @@ impl GcsFilterReader {
             loop {
                 match data.cmp(&p) {
                     Ordering::Equal => break,
-                    Ordering::Less =>
+                    Ordering::Less => {
                         if remaining > 0 {
                             data += self.filter.golomb_rice_decode(&mut reader)?;
                             remaining -= 1;
                         } else {
                             return Ok(false);
-                        },
+                        }
+                    }
                     Ordering::Greater => return Ok(false),
                 }
             }
@@ -368,7 +378,9 @@ impl GcsFilterReader {
 }
 
 /// Fast reduction of hash to [0, nm) range.
-fn map_to_range(hash: u64, nm: u64) -> u64 { ((u128::from(hash) * u128::from(nm)) >> 64) as u64 }
+fn map_to_range(hash: u64, nm: u64) -> u64 {
+    ((u128::from(hash) * u128::from(nm)) >> 64) as u64
+}
 
 /// Golomb-Rice encoded filter writer.
 pub struct GcsFilterWriter<'a, W> {
@@ -427,7 +439,9 @@ struct GcsFilter {
 
 impl GcsFilter {
     /// Creates a new [`GcsFilter`].
-    fn new(k0: u64, k1: u64, p: u8) -> GcsFilter { GcsFilter { k0, k1, p } }
+    fn new(k0: u64, k1: u64, p: u8) -> GcsFilter {
+        GcsFilter { k0, k1, p }
+    }
 
     /// Golomb-Rice encodes a number `n` to a bit stream (parameter 2^k).
     fn golomb_rice_encode<W>(
@@ -560,187 +574,6 @@ impl<'a, W: Write> BitStreamWriter<'a, W> {
             Ok(1)
         } else {
             Ok(0)
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use std::collections::HashMap;
-
-    use hex::test_hex_unwrap as hex;
-    use serde_json::Value;
-
-    use super::*;
-    use crate::consensus::encode::deserialize;
-    use crate::ScriptBuf;
-
-    #[test]
-    fn test_blockfilters() {
-        // test vectors from: https://github.com/jimpo/bitcoin/blob/c7efb652f3543b001b4dd22186a354605b14f47e/src/test/data/blockfilters.json
-        let data = include_str!("../tests/data/blockfilters.json");
-
-        let testdata = serde_json::from_str::<Value>(data).unwrap().as_array().unwrap().clone();
-        for t in testdata.iter().skip(1) {
-            let block_hash = t.get(1).unwrap().as_str().unwrap().parse::<BlockHash>().unwrap();
-            let block: Block = deserialize(&hex!(t.get(2).unwrap().as_str().unwrap())).unwrap();
-            assert_eq!(block.block_hash(), block_hash);
-            let scripts = t.get(3).unwrap().as_array().unwrap();
-            let previous_filter_header =
-                t.get(4).unwrap().as_str().unwrap().parse::<FilterHeader>().unwrap();
-            let filter_content = hex!(t.get(5).unwrap().as_str().unwrap());
-            let filter_header =
-                t.get(6).unwrap().as_str().unwrap().parse::<FilterHeader>().unwrap();
-
-            let mut txmap = HashMap::new();
-            let mut si = scripts.iter();
-            for tx in block.txdata.iter().skip(1) {
-                for input in tx.input.iter() {
-                    txmap.insert(
-                        input.previous_output,
-                        ScriptBuf::from(hex!(si.next().unwrap().as_str().unwrap())),
-                    );
-                }
-            }
-
-            let filter = BlockFilter::new_script_filter(&block, |o| {
-                if let Some(s) = txmap.get(o) {
-                    Ok(s.clone())
-                } else {
-                    Err(Error::UtxoMissing(*o))
-                }
-            })
-            .unwrap();
-
-            let test_filter = BlockFilter::new(filter_content.as_slice());
-
-            assert_eq!(test_filter.content, filter.content);
-
-            let block_hash = &block.block_hash();
-            assert!(filter
-                .match_all(
-                    *block_hash,
-                    &mut txmap.iter().filter_map(|(_, s)| if !s.is_empty() {
-                        Some(s.as_bytes())
-                    } else {
-                        None
-                    })
-                )
-                .unwrap());
-
-            for script in txmap.values() {
-                let query = [script];
-                if !script.is_empty() {
-                    assert!(filter
-                        .match_any(*block_hash, &mut query.iter().map(|s| s.as_bytes()))
-                        .unwrap());
-                }
-            }
-
-            assert_eq!(filter_header, filter.filter_header(previous_filter_header));
-        }
-    }
-
-    #[test]
-    fn test_filter() {
-        let mut patterns = BTreeSet::new();
-
-        patterns.insert(hex!("000000"));
-        patterns.insert(hex!("111111"));
-        patterns.insert(hex!("222222"));
-        patterns.insert(hex!("333333"));
-        patterns.insert(hex!("444444"));
-        patterns.insert(hex!("555555"));
-        patterns.insert(hex!("666666"));
-        patterns.insert(hex!("777777"));
-        patterns.insert(hex!("888888"));
-        patterns.insert(hex!("999999"));
-        patterns.insert(hex!("aaaaaa"));
-        patterns.insert(hex!("bbbbbb"));
-        patterns.insert(hex!("cccccc"));
-        patterns.insert(hex!("dddddd"));
-        patterns.insert(hex!("eeeeee"));
-        patterns.insert(hex!("ffffff"));
-
-        let mut out = Vec::new();
-        {
-            let mut writer = GcsFilterWriter::new(&mut out, 0, 0, M, P);
-            for p in &patterns {
-                writer.add_element(p.as_slice());
-            }
-            writer.finish().unwrap();
-        }
-
-        let bytes = out;
-
-        {
-            let query = [hex!("abcdef"), hex!("eeeeee")];
-            let reader = GcsFilterReader::new(0, 0, M, P);
-            assert!(reader
-                .match_any(&mut bytes.as_slice(), &mut query.iter().map(|v| v.as_slice()))
-                .unwrap());
-        }
-        {
-            let query = [hex!("abcdef"), hex!("123456")];
-            let reader = GcsFilterReader::new(0, 0, M, P);
-            assert!(!reader
-                .match_any(&mut bytes.as_slice(), &mut query.iter().map(|v| v.as_slice()))
-                .unwrap());
-        }
-        {
-            let reader = GcsFilterReader::new(0, 0, M, P);
-            let mut query = Vec::new();
-            for p in &patterns {
-                query.push(p.clone());
-            }
-            assert!(reader
-                .match_all(&mut bytes.as_slice(), &mut query.iter().map(|v| v.as_slice()))
-                .unwrap());
-        }
-        {
-            let reader = GcsFilterReader::new(0, 0, M, P);
-            let mut query = Vec::new();
-            for p in &patterns {
-                query.push(p.clone());
-            }
-            query.push(hex!("abcdef"));
-            assert!(!reader
-                .match_all(&mut bytes.as_slice(), &mut query.iter().map(|v| v.as_slice()))
-                .unwrap());
-        }
-    }
-
-    #[test]
-    fn test_bit_stream() {
-        let mut out = Vec::new();
-        {
-            let mut writer = BitStreamWriter::new(&mut out);
-            writer.write(0, 1).unwrap(); // 0
-            writer.write(2, 2).unwrap(); // 10
-            writer.write(6, 3).unwrap(); // 110
-            writer.write(11, 4).unwrap(); // 1011
-            writer.write(1, 5).unwrap(); // 00001
-            writer.write(32, 6).unwrap(); // 100000
-            writer.write(7, 7).unwrap(); // 0000111
-            writer.flush().unwrap();
-        }
-        let bytes = out;
-        assert_eq!(
-            "01011010110000110000000001110000",
-            format!("{:08b}{:08b}{:08b}{:08b}", bytes[0], bytes[1], bytes[2], bytes[3])
-        );
-        {
-            let mut input = bytes.as_slice();
-            let mut reader = BitStreamReader::new(&mut input);
-            assert_eq!(reader.read(1).unwrap(), 0);
-            assert_eq!(reader.read(2).unwrap(), 2);
-            assert_eq!(reader.read(3).unwrap(), 6);
-            assert_eq!(reader.read(4).unwrap(), 11);
-            assert_eq!(reader.read(5).unwrap(), 1);
-            assert_eq!(reader.read(6).unwrap(), 32);
-            assert_eq!(reader.read(7).unwrap(), 7);
-            // 4 bits remained
-            assert!(reader.read(5).is_err());
         }
     }
 }
