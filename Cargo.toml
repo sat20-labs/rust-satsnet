@@ -11,7 +11,7 @@ members = [
 ]
 resolver = "2"
 
-[patch.crates-io.bitcoin-addresses]
+[patch.crates-io.satsnet-addresses]
 path = "addresses"
 
 [patch.crates-io.base58ck]
@@ -20,7 +20,7 @@ path = "base58"
 [patch.crates-io.bitcoin]
 path = "bitcoin"
 
-[patch.crates-io.bitcoin_hashes]
+[patch.crates-io.satsnet_hashes]
 path = "hashes"
 
 [patch.crates-io.satsnet-internals]

@@ -48,7 +48,9 @@ impl<T> Hash<T>
 where
     T: Tag,
 {
-    const fn internal_new(arr: [u8; 32]) -> Self { Hash(arr, PhantomData) }
+    const fn internal_new(arr: [u8; 32]) -> Self {
+        Hash(arr, PhantomData)
+    }
 
     /// Zero cost conversion between a fixed length byte array shared reference and
     /// a shared reference to this Hash type.
@@ -65,10 +67,14 @@ where
     }
 
     /// Constructs a new engine.
-    pub fn engine() -> HashEngine { T::engine() }
+    pub fn engine() -> HashEngine {
+        T::engine()
+    }
 
     /// Produces a hash from the current state of a given engine.
-    pub fn from_engine(e: HashEngine) -> Hash<T> { from_engine(e) }
+    pub fn from_engine(e: HashEngine) -> Hash<T> {
+        from_engine(e)
+    }
 
     /// Copies a byte slice into a hash object.
     #[deprecated(since = "TBD", note = "Use `from_byte_array` instead.")]
@@ -125,25 +131,37 @@ where
     }
 
     /// Returns the underlying byte array.
-    pub const fn to_byte_array(self) -> [u8; 32] { self.0 }
+    pub const fn to_byte_array(self) -> [u8; 32] {
+        self.0
+    }
 
     /// Returns a reference to the underlying byte array.
-    pub const fn as_byte_array(&self) -> &[u8; 32] { &self.0 }
+    pub const fn as_byte_array(&self) -> &[u8; 32] {
+        &self.0
+    }
 
     /// Constructs a hash from the underlying byte array.
-    pub const fn from_byte_array(bytes: [u8; 32]) -> Self { Self::internal_new(bytes) }
+    pub const fn from_byte_array(bytes: [u8; 32]) -> Self {
+        Self::internal_new(bytes)
+    }
 }
 
 impl<T: Tag> Copy for Hash<T> {}
 impl<T: Tag> Clone for Hash<T> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 impl<T: Tag> PartialEq for Hash<T> {
-    fn eq(&self, other: &Hash<T>) -> bool { self.0 == other.0 }
+    fn eq(&self, other: &Hash<T>) -> bool {
+        self.0 == other.0
+    }
 }
 impl<T: Tag> Eq for Hash<T> {}
 impl<T: Tag> Default for Hash<T> {
-    fn default() -> Self { Hash([0; 32], PhantomData) }
+    fn default() -> Self {
+        Hash([0; 32], PhantomData)
+    }
 }
 impl<T: Tag> PartialOrd for Hash<T> {
     fn partial_cmp(&self, other: &Hash<T>) -> Option<cmp::Ordering> {
@@ -151,10 +169,14 @@ impl<T: Tag> PartialOrd for Hash<T> {
     }
 }
 impl<T: Tag> Ord for Hash<T> {
-    fn cmp(&self, other: &Hash<T>) -> cmp::Ordering { cmp::Ord::cmp(&self.0, &other.0) }
+    fn cmp(&self, other: &Hash<T>) -> cmp::Ordering {
+        cmp::Ord::cmp(&self.0, &other.0)
+    }
 }
 impl<T: Tag> core::hash::Hash for Hash<T> {
-    fn hash<H: core::hash::Hasher>(&self, h: &mut H) { self.0.hash(h) }
+    fn hash<H: core::hash::Hasher>(&self, h: &mut H) {
+        self.0.hash(h)
+    }
 }
 
 crate::internal_macros::hash_trait_impls!(256, false, T: Tag);
@@ -173,7 +195,7 @@ where
 /// The syntax is:
 ///
 /// ```
-/// # use bitcoin_hashes::sha256t_tag;
+/// # use satsnet_hashes::sha256t_tag;
 /// sha256t_tag! {
 ///     /// Optional documentation details here.
 ///     /// Summary is always generated.
@@ -211,7 +233,7 @@ macro_rules! sha256t_tag {
 /// The syntax is:
 ///
 /// ```
-/// # use bitcoin_hashes::sha256t_hash_newtype;
+/// # use satsnet_hashes::sha256t_hash_newtype;
 /// sha256t_hash_newtype! {
 ///     /// Optional documentation details here.
 ///     /// Summary is always generated.

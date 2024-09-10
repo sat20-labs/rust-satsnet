@@ -12,7 +12,7 @@
 //! Hashing a single byte slice or a string:
 //!
 //! ```rust
-//! use bitcoin_hashes::Sha256;
+//! use satsnet_hashes::Sha256;
 //!
 //! let bytes = [0u8; 5];
 //! let hash_of_bytes = Sha256::hash(&bytes);
@@ -23,7 +23,7 @@
 //! Hashing content from a reader:
 //!
 //! ```rust
-//! use bitcoin_hashes::Sha256;
+//! use satsnet_hashes::Sha256;
 //!
 //! #[cfg(std)]
 //! # fn main() -> std::io::Result<()> {
@@ -42,7 +42,7 @@
 //! Hashing content by [`std::io::Write`] on `HashEngine`:
 //!
 //! ```rust
-//! use bitcoin_hashes::Sha256;
+//! use satsnet_hashes::Sha256;
 //! use std::io::Write;
 //!
 //! #[cfg(std)]
@@ -323,10 +323,14 @@ pub struct FromSliceError {
 
 impl FromSliceError {
     /// Returns the expected slice length.
-    pub fn expected_length(&self) -> usize { self.expected }
+    pub fn expected_length(&self) -> usize {
+        self.expected
+    }
 
     /// Returns the invalid slice length.
-    pub fn invalid_length(&self) -> usize { self.got }
+    pub fn invalid_length(&self) -> usize {
+        self.got
+    }
 }
 
 impl fmt::Display for FromSliceError {
