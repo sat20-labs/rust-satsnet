@@ -1,6 +1,7 @@
 [package]
 name = "satsnet-io"
 version = "0.1.2"
+license = "CC0-1.0"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 repository = "https://github.com/sat20-labs/rust-satsnet"
 description = "Simple I/O traits for no-std (and std) environments"

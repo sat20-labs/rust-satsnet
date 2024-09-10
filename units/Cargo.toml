@@ -1,6 +1,7 @@
 [package]
 name = "satsnet-units"
 version = "0.1.2"
+license = "CC0-1.0"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 repository = "https://github.com/sat20-labs/rust-satsnet/"
 description = "Basic Bitcoin numeric units such as amount"

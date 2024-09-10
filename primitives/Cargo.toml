@@ -1,6 +1,7 @@
 [package]
 name = "satsnet-primitives"
 version = "0.100.0"
+license = "CC0-1.0"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 repository = "https://github.com/sat20-labs/rust-satsnet"
 description = "Primitive types used by the rust-satsnet ecosystem"
