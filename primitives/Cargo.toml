@@ -17,7 +17,7 @@ serde = ["dep:serde", "internals/serde", "units/serde", "alloc"]
 
 [dependencies]
 internals = { package = "satsnet-internals", version = "0.3.0" }
-io = { package = "bitcoin-io", version = "0.1.1", default-features = false }
+io = { package = "satsnet-io", version = "0.1.1", default-features = false }
 units = { package = "satsnet-units", version = "0.1.0", default-features = false }
 ordered = { version = "0.2.0", optional = true }
 serde = { version = "1.0.103", default-features = false, features = [

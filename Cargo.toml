@@ -26,7 +26,7 @@ path = "hashes"
 [patch.crates-io.satsnet-internals]
 path = "internals"
 
-[patch.crates-io.bitcoin-io]
+[patch.crates-io.satsnet-io]
 path = "io"
 
 [patch.crates-io.satsnet-primitives]

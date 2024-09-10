@@ -53,7 +53,7 @@ hex = { package = "hex-conservative", version = "0.2.0", default-features = fals
 internals = { package = "satsnet-internals", version = "0.3.0", features = [
     "alloc",
 ] }
-io = { package = "bitcoin-io", version = "0.1.1", default-features = false, features = [
+io = { package = "satsnet-io", version = "0.1.1", default-features = false, features = [
     "alloc",
 ] }
 primitives = { package = "satsnet-primitives", version = "0.100.0", default-features = false, features = [
