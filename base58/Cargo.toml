@@ -6,7 +6,7 @@ license = "CC0-1.0"
 repository = "https://github.com/sat20-labs/rust-satsnet/"
 description = "Bitcoin base58 encoding with checksum."
 categories = ["cryptography::cryptocurrencies", "encoding"]
-keywords = ["satsnet", "base58", "encode", "decode", "checksum"]
+keywords = ["satsnet", "bitcoin", "base58", "encode", "checksum"]
 edition = "2021"
 rust-version = "1.63.0"
 
