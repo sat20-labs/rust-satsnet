@@ -1,6 +1,6 @@
 [package]
 name = "satsnet_hashes"
-version = "0.14.0"
+version = "0.14.1"
 license = "CC0-1.0"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 repository = "https://github.com/sat20-labs/rust-satsnet"
@@ -22,7 +22,7 @@ small-hash = []
 [dependencies]
 hex = { package = "hex-conservative", version = "0.2.0", default-features = false }
 
-satsnet-io = { version = "0.1.1", default-features = false, optional = true }
+satsnet-io = { version = "0.1.3", default-features = false, optional = true }
 schemars = { version = "0.8.3", default-features = false, optional = true }
 serde = { version = "1.0", default-features = false, optional = true }
 
