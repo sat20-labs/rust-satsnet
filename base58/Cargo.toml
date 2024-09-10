@@ -1,6 +1,6 @@
 [package]
 name = "satsnet-base58ck"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 license = "CC0-1.0"
 repository = "https://github.com/sat20-labs/rust-satsnet/"
