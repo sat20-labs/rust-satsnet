@@ -23,14 +23,14 @@ path = "bitcoin"
 [patch.crates-io.bitcoin_hashes]
 path = "hashes"
 
-[patch.crates-io.bitcoin-internals]
+[patch.crates-io.satsnet-internals]
 path = "internals"
 
 [patch.crates-io.bitcoin-io]
 path = "io"
 
-[patch.crates-io.bitcoin-primitives]
+[patch.crates-io.satsnet-primitives]
 path = "primitives"
 
-[patch.crates-io.statsnet-units]
+[patch.crates-io.satsnet-units]
 path = "units"

@@ -1,37 +1,22 @@
 [package]
-name = "bitcoin-internals"
+name = "satsnet-internals"
 version = "0.3.0"
-authors = ["Andrew Poelstra <apoelstra@wpsoftware.net>", "The Rust Bitcoin developers"]
-license = "CC0-1.0"
-repository = "https://github.com/rust-bitcoin/rust-bitcoin/"
-documentation = "https://docs.rs/bitcoin-internals"
-description = "Internal types and macros used by rust-bitcoin ecosystem"
+authors = ["Jacky Chen <softwarecheng@gmail.com>"]
+repository = "https://github.com/sat20-labs/rust-satsnet/"
+description = "Internal types and macros used by satsnet-bitcoin ecosystem"
 categories = ["cryptography::cryptocurrencies"]
-keywords = ["internal"]
-readme = "README.md"
+keywords = ["satsnet", "bitcoin", "internal"]
 edition = "2021"
 rust-version = "1.63.0"
-exclude = ["tests", "contrib"]
 
 [features]
 default = []
 std = ["alloc"]
 alloc = []
-
 test-serde = ["serde", "serde_json", "bincode"]
 
 [dependencies]
 serde = { version = "1.0.103", default-features = false, optional = true }
-
 # Don't enable these directly, use `test-serde` feature instead.
 serde_json = { version = "1.0.68", optional = true }
 bincode = { version = "1.3.1", optional = true }
-
-[dev-dependencies]
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
-
-[lints.rust]
-unexpected_cfgs = { level = "deny" }

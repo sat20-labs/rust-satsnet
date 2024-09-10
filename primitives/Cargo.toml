@@ -1,18 +1,13 @@
 [package]
-name = "bitcoin-primitives"
-# Arbitrary high version number so as to not clash with the original
-# `bitcoin-primitives` crate that we replaced `v0.1.16-alpha`.
+name = "satsnet-primitives"
 version = "0.100.0"
-authors = ["Andrew Poelstra <apoelstra@wpsoftware.net>"]
-license = "CC0-1.0"
-repository = "https://github.com/rust-bitcoin/rust-bitcoin"
-description = "Primitive types used by the rust-bitcoin ecosystem"
+authors = ["Jacky Chen <softwarecheng@gmail.com>"]
+repository = "https://github.com/sat20-labs/rust-satsnet"
+description = "Primitive types used by the rust-satsnet ecosystem"
 categories = ["cryptography::cryptocurrencies"]
-keywords = ["bitcoin", "types"]
-readme = "README.md"
+keywords = ["satsnet", "bitcoin", "types"]
 edition = "2021"
 rust-version = "1.63.0"
-exclude = ["tests", "contrib"]
 
 [features]
 default = ["std"]
@@ -21,24 +16,10 @@ alloc = ["internals/alloc", "io/alloc", "units/alloc"]
 serde = ["dep:serde", "internals/serde", "units/serde", "alloc"]
 
 [dependencies]
-internals = { package = "bitcoin-internals", version = "0.3.0" }
+internals = { package = "satsnet-internals", version = "0.3.0" }
 io = { package = "bitcoin-io", version = "0.1.1", default-features = false }
-units = { package = "statsnet-units", version = "0.1.0", default-features = false }
-
+units = { package = "satsnet-units", version = "0.1.0", default-features = false }
 ordered = { version = "0.2.0", optional = true }
-
 serde = { version = "1.0.103", default-features = false, features = [
     "derive",
 ], optional = true }
-
-[dev-dependencies]
-
-[target.'cfg(mutate)'.dev-dependencies]
-mutagen = { git = "https://github.com/llogiq/mutagen" }
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
-
-[lints.rust]
-unexpected_cfgs = { level = "deny", check-cfg = ['cfg(mutate)'] }
