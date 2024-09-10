@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: CC0-1.0
 
-use internals::ToU64 as _;
 use io::{BufRead, Cursor, Read};
 
 use crate::bip32::{ChildNumber, DerivationPath, Fingerprint, Xpub};
+use crate::blockdata::transaction::Transaction;
 use crate::consensus::encode::MAX_VEC_SIZE;
 use crate::consensus::{encode, Decodable};
-use crate::prelude::{btree_map, BTreeMap, Vec};
+use crate::prelude::*;
 use crate::psbt::map::Map;
 use crate::psbt::{raw, Error, Psbt};
-use crate::transaction::Transaction;
 
 /// Type: Unsigned Transaction PSBT_GLOBAL_UNSIGNED_TX = 0x00
 const PSBT_GLOBAL_UNSIGNED_TX: u8 = 0x00;
@@ -25,7 +24,7 @@ impl Map for Psbt {
         let mut rv: Vec<raw::Pair> = Default::default();
 
         rv.push(raw::Pair {
-            key: raw::Key { type_value: PSBT_GLOBAL_UNSIGNED_TX, key_data: vec![] },
+            key: raw::Key { type_value: PSBT_GLOBAL_UNSIGNED_TX, key: vec![] },
             value: {
                 // Manually serialized to ensure 0-input txs are serialized
                 // without witnesses.
@@ -40,7 +39,7 @@ impl Map for Psbt {
 
         for (xpub, (fingerprint, derivation)) in &self.xpub {
             rv.push(raw::Pair {
-                key: raw::Key { type_value: PSBT_GLOBAL_XPUB, key_data: xpub.encode().to_vec() },
+                key: raw::Key { type_value: PSBT_GLOBAL_XPUB, key: xpub.encode().to_vec() },
                 value: {
                     let mut ret = Vec::with_capacity(4 + derivation.len() * 4);
                     ret.extend(fingerprint.as_bytes());
@@ -53,7 +52,7 @@ impl Map for Psbt {
         // Serializing version only for non-default value; otherwise test vectors fail
         if self.version > 0 {
             rv.push(raw::Pair {
-                key: raw::Key { type_value: PSBT_GLOBAL_VERSION, key_data: vec![] },
+                key: raw::Key { type_value: PSBT_GLOBAL_VERSION, key: vec![] },
                 value: self.version.to_le_bytes().to_vec(),
             });
         }
@@ -72,7 +71,7 @@ impl Map for Psbt {
 
 impl Psbt {
     pub(crate) fn decode_global<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, Error> {
-        let mut r = r.take(MAX_VEC_SIZE.to_u64());
+        let mut r = r.take(MAX_VEC_SIZE as u64);
         let mut tx: Option<Transaction> = None;
         let mut version: Option<u32> = None;
         let mut unknowns: BTreeMap<raw::Key, Vec<u8>> = Default::default();
@@ -85,7 +84,7 @@ impl Psbt {
                     match pair.key.type_value {
                         PSBT_GLOBAL_UNSIGNED_TX => {
                             // key has to be empty
-                            if pair.key.key_data.is_empty() {
+                            if pair.key.key.is_empty() {
                                 // there can only be one unsigned transaction
                                 if tx.is_none() {
                                     let vlen: usize = pair.value.len();
@@ -101,7 +100,7 @@ impl Psbt {
                                         lock_time: Decodable::consensus_decode(&mut decoder)?,
                                     });
 
-                                    if decoder.position() != vlen.to_u64() {
+                                    if decoder.position() != vlen as u64 {
                                         return Err(Error::PartialDataConsumption);
                                     }
                                 } else {
@@ -112,15 +111,15 @@ impl Psbt {
                             }
                         }
                         PSBT_GLOBAL_XPUB => {
-                            if !pair.key.key_data.is_empty() {
-                                let xpub = Xpub::decode(&pair.key.key_data)
+                            if !pair.key.key.is_empty() {
+                                let xpub = Xpub::decode(&pair.key.key)
                                     .map_err(|_| Error::XPubKey(
-                                        "can't deserialize ExtendedPublicKey from global XPUB key data"
+                                        "Can't deserialize ExtendedPublicKey from global XPUB key data"
                                     ))?;
 
                                 if pair.value.is_empty() || pair.value.len() % 4 != 0 {
                                     return Err(Error::XPubKey(
-                                        "incorrect length of global xpub derivation data",
+                                        "Incorrect length of global xpub derivation data",
                                     ));
                                 }
 
@@ -128,7 +127,7 @@ impl Psbt {
                                 let mut decoder = Cursor::new(pair.value);
                                 let mut fingerprint = [0u8; 4];
                                 decoder.read_exact(&mut fingerprint[..]).map_err(|_| {
-                                    Error::XPubKey("can't read global xpub fingerprint")
+                                    Error::XPubKey("Can't read global xpub fingerprint")
                                 })?;
                                 let mut path = Vec::<ChildNumber>::with_capacity(child_count);
                                 while let Ok(index) = u32::consensus_decode(&mut decoder) {
@@ -140,7 +139,7 @@ impl Psbt {
                                     .insert(xpub, (Fingerprint::from(fingerprint), derivation))
                                     .is_some()
                                 {
-                                    return Err(Error::XPubKey("repeated global xpub key"));
+                                    return Err(Error::XPubKey("Repeated global xpub key"));
                                 }
                             } else {
                                 return Err(Error::XPubKey(
@@ -150,7 +149,7 @@ impl Psbt {
                         }
                         PSBT_GLOBAL_VERSION => {
                             // key has to be empty
-                            if pair.key.key_data.is_empty() {
+                            if pair.key.key.is_empty() {
                                 // there can only be one version
                                 if version.is_none() {
                                     let vlen: usize = pair.value.len();

@@ -4,13 +4,14 @@
 //!
 //! This module defines the `NetworkMessage` and `RawNetworkMessage` types that
 //! are used for (de)serializing Bitcoin objects for transmission on the network.
+//!
 
 use core::{fmt, iter};
 
-use hashes::sha256d;
-use internals::ToU64 as _;
+use hashes::{sha256d, Hash};
 use io::{BufRead, Write};
 
+use crate::blockdata::{block, transaction};
 use crate::consensus::encode::{self, CheckedData, Decodable, Encodable, VarInt};
 use crate::merkle_tree::MerkleBlock;
 use crate::p2p::address::{AddrV2Message, Address};
@@ -18,8 +19,7 @@ use crate::p2p::{
     message_blockdata, message_bloom, message_compact_blocks, message_filter, message_network,
     Magic,
 };
-use crate::prelude::{Box, Cow, String, ToOwned, Vec};
-use crate::{block, transaction};
+use crate::prelude::*;
 
 /// The maximum number of [super::message_blockdata::Inventory] items in an `inv` message.
 ///
@@ -310,16 +310,18 @@ impl RawNetworkMessage {
     /// Creates a [RawNetworkMessage]
     pub fn new(magic: Magic, payload: NetworkMessage) -> Self {
         let mut engine = sha256d::Hash::engine();
-        let payload_len = payload.consensus_encode(&mut engine).expect("engine doesn't error");
+        let payload_len = payload
+            .consensus_encode(&mut engine)
+            .expect("engine doesn't error");
         let payload_len = u32::try_from(payload_len).expect("network message use u32 as length");
         let checksum = sha256d::Hash::from_engine(engine);
         let checksum = [checksum[0], checksum[1], checksum[2], checksum[3]];
-        Self { magic, payload, payload_len, checksum }
-    }
-
-    /// Consumes the [RawNetworkMessage] instance and returns the inner payload.
-    pub fn into_payload(self) -> NetworkMessage {
-        self.payload
+        Self {
+            magic,
+            payload,
+            payload_len,
+            checksum,
+        }
     }
 
     /// The actual message data
@@ -403,7 +405,9 @@ impl Encodable for NetworkMessage {
             | NetworkMessage::WtxidRelay
             | NetworkMessage::FilterClear
             | NetworkMessage::SendAddrV2 => Ok(0),
-            NetworkMessage::Unknown { payload: ref data, .. } => data.consensus_encode(writer),
+            NetworkMessage::Unknown {
+                payload: ref data, ..
+            } => data.consensus_encode(writer),
         }
     }
 }
@@ -444,7 +448,7 @@ impl Decodable for HeaderDeserializationWrapper {
 
     #[inline]
     fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
-        Self::consensus_decode_from_finite_reader(&mut r.take(MAX_MSG_SIZE.to_u64()))
+        Self::consensus_decode_from_finite_reader(&mut r.take(MAX_MSG_SIZE as u64))
     }
 }
 
@@ -553,13 +557,21 @@ impl Decodable for RawNetworkMessage {
                 NetworkMessage::AddrV2(Decodable::consensus_decode_from_finite_reader(&mut mem_d)?)
             }
             "sendaddrv2" => NetworkMessage::SendAddrV2,
-            _ => NetworkMessage::Unknown { command: cmd, payload: raw_payload },
+            _ => NetworkMessage::Unknown {
+                command: cmd,
+                payload: raw_payload,
+            },
         };
-        Ok(RawNetworkMessage { magic, payload, payload_len, checksum })
+        Ok(RawNetworkMessage {
+            magic,
+            payload,
+            payload_len,
+            checksum,
+        })
     }
 
     #[inline]
     fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
-        Self::consensus_decode_from_finite_reader(&mut r.take(MAX_MSG_SIZE.to_u64()))
+        Self::consensus_decode_from_finite_reader(&mut r.take(MAX_MSG_SIZE as u64))
     }
 }

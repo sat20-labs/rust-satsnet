@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: CC0-1.0
 
-//! Provides [`Height`] and [`Time`] types used by the `rust-bitcoin` `absolute::LockTime` type.
+//! Provides type `Height` and `Time` types used by the `rust-bitcoin` `absolute::LockTime` type.
 
-#[cfg(feature = "alloc")]
-use alloc::{boxed::Box, string::String};
 use core::fmt;
 
 use internals::write_err;
 
+use crate::parse::{self, ParseIntError};
 #[cfg(feature = "alloc")]
-use crate::parse;
-use crate::parse::ParseIntError;
+use crate::prelude::*;
 
 /// The Threshold for deciding whether a lock time value is a height or a time (see [Bitcoin Core]).
 ///
@@ -39,9 +37,9 @@ impl Height {
     /// The maximum absolute block height.
     pub const MAX: Self = Height(LOCK_TIME_THRESHOLD - 1);
 
-    /// Creates a [`Height`] from a hex string.
+    /// Creates a `Height` from a hex string.
     ///
-    /// The input string may or may not contain a typical hex prefix e.g., `0x`.
+    /// The input string is may or may not contain a typical hex prefix e.g., `0x`.
     pub fn from_hex(s: &str) -> Result<Self, ParseHeightError> {
         parse_hex(s, Self::from_consensus)
     }
@@ -53,9 +51,8 @@ impl Height {
     /// If `n` does not represent a valid block height value.
     ///
     /// # Examples
-    ///
     /// ```rust
-    /// use bitcoin_units::locktime::absolute::Height;
+    /// use satsnet_units::locktime::absolute::Height;
     ///
     /// let h: u32 = 741521;
     /// let height = Height::from_consensus(h).expect("invalid height value");
@@ -70,7 +67,7 @@ impl Height {
         }
     }
 
-    /// Converts this [`Height`] to its inner `u32` value.
+    /// Converts this `Height` to its inner `u32` value.
     #[inline]
     pub fn to_consensus_u32(self) -> u32 {
         self.0
@@ -91,7 +88,8 @@ pub struct ParseHeightError(ParseError);
 
 impl fmt::Display for ParseHeightError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.display(f, "block height", 0, LOCK_TIME_THRESHOLD - 1)
+        self.0
+            .display(f, "block height", 0, LOCK_TIME_THRESHOLD - 1)
     }
 }
 
@@ -143,11 +141,11 @@ impl Time {
     pub const MIN: Self = Time(LOCK_TIME_THRESHOLD);
 
     /// The maximum absolute block time (Sun Feb 07 2106 06:28:15 GMT+0000).
-    pub const MAX: Self = Time(u32::MAX);
+    pub const MAX: Self = Time(u32::max_value());
 
-    /// Creates a [`Time`] from a hex string.
+    /// Creates a `Time` from a hex string.
     ///
-    /// The input string may or may not contain a typical hex prefix e.g., `0x`.
+    /// The input string is may or may not contain a typical hex prefix e.g., `0x`.
     pub fn from_hex(s: &str) -> Result<Self, ParseTimeError> {
         parse_hex(s, Self::from_consensus)
     }
@@ -159,9 +157,8 @@ impl Time {
     /// If `n` does not encode a valid UNIX time stamp.
     ///
     /// # Examples
-    ///
     /// ```rust
-    /// use bitcoin_units::locktime::absolute::Time;
+    /// use satsnet_units::locktime::absolute::Time;
     ///
     /// let t: u32 = 1653195600; // May 22nd, 5am UTC.
     /// let time = Time::from_consensus(t).expect("invalid time value");
@@ -176,7 +173,7 @@ impl Time {
         }
     }
 
-    /// Converts this [`Time`] to its inner `u32` value.
+    /// Converts this `Time` to its inner `u32` value.
     #[inline]
     pub fn to_consensus_u32(self) -> u32 {
         self.0
@@ -218,7 +215,8 @@ pub struct ParseTimeError(ParseError);
 
 impl fmt::Display for ParseTimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.display(f, "block height", LOCK_TIME_THRESHOLD, u32::MAX)
+        self.0
+            .display(f, "block height", LOCK_TIME_THRESHOLD, u32::MAX)
     }
 }
 
@@ -243,7 +241,10 @@ where
     F: FnOnce(u32) -> Result<T, ConversionError>,
 {
     move |s| {
-        let n = s.as_ref().parse::<i64>().map_err(ParseError::invalid_int(s))?;
+        let n = s
+            .as_ref()
+            .parse::<i64>()
+            .map_err(ParseError::invalid_int(s))?;
         let n = u32::try_from(n).map_err(|_| ParseError::Conversion(n))?;
         f(n).map_err(ParseError::from).map_err(Into::into)
     }
@@ -255,7 +256,7 @@ where
     S: AsRef<str> + Into<String>,
     F: FnOnce(u32) -> Result<T, ConversionError>,
 {
-    let n = i64::from_str_radix(parse::hex_remove_optional_prefix(s.as_ref()), 16)
+    let n = i64::from_str_radix(parse::strip_hex_prefix(s.as_ref()), 16)
         .map_err(ParseError::invalid_int(s))?;
     let n = u32::try_from(n).map_err(|_| ParseError::Conversion(n))?;
     f(n).map_err(ParseError::from).map_err(Into::into)
@@ -284,12 +285,18 @@ pub struct ConversionError {
 impl ConversionError {
     /// Constructs a `ConversionError` from an invalid `n` when expecting a height value.
     fn invalid_height(n: u32) -> Self {
-        Self { unit: LockTimeUnit::Blocks, input: n }
+        Self {
+            unit: LockTimeUnit::Blocks,
+            input: n,
+        }
     }
 
     /// Constructs a `ConversionError` from an invalid `n` when expecting a time value.
     fn invalid_time(n: u32) -> Self {
-        Self { unit: LockTimeUnit::Seconds, input: n }
+        Self {
+            unit: LockTimeUnit::Seconds,
+            input: n,
+        }
     }
 }
 
@@ -320,8 +327,16 @@ impl fmt::Display for LockTimeUnit {
         use LockTimeUnit::*;
 
         match *self {
-            Blocks => write!(f, "expected lock-by-blockheight (must be < {})", LOCK_TIME_THRESHOLD),
-            Seconds => write!(f, "expected lock-by-blocktime (must be >= {})", LOCK_TIME_THRESHOLD),
+            Blocks => write!(
+                f,
+                "expected lock-by-blockheight (must be < {})",
+                LOCK_TIME_THRESHOLD
+            ),
+            Seconds => write!(
+                f,
+                "expected lock-by-blocktime (must be >= {})",
+                LOCK_TIME_THRESHOLD
+            ),
         }
     }
 }
@@ -329,7 +344,10 @@ impl fmt::Display for LockTimeUnit {
 /// Internal - common representation for height and time.
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum ParseError {
-    InvalidInteger { source: core::num::ParseIntError, input: String },
+    InvalidInteger {
+        source: core::num::ParseIntError,
+        input: String,
+    },
     // unit implied by outer type
     // we use i64 to have nicer messages for negative values
     Conversion(i64),
@@ -339,7 +357,10 @@ internals::impl_from_infallible!(ParseError);
 
 impl ParseError {
     fn invalid_int<S: Into<String>>(s: S) -> impl FnOnce(core::num::ParseIntError) -> Self {
-        move |source| Self::InvalidInteger { source, input: s.into() }
+        move |source| Self::InvalidInteger {
+            source,
+            input: s.into(),
+        }
     }
 
     fn display(
@@ -390,7 +411,10 @@ impl ParseError {
 
 impl From<ParseIntError> for ParseError {
     fn from(value: ParseIntError) -> Self {
-        Self::InvalidInteger { source: value.source, input: value.input }
+        Self::InvalidInteger {
+            source: value.source,
+            input: value.input,
+        }
     }
 }
 

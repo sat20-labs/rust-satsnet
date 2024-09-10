@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: CC0-1.0
 
-//! BIP152 Compact Blocks.
+//! BIP152 Compact Blocks
 //!
 //! Implementation of compact blocks data structure and algorithms.
+//!
 
 use core::{convert, fmt, mem};
 #[cfg(feature = "std")]
 use std::error;
 
-use hashes::{sha256, siphash24};
-use internals::{impl_array_newtype, ToU64 as _};
+use hashes::{sha256, siphash24, Hash};
+use internals::impl_array_newtype;
 use io::{BufRead, Write};
 
 use crate::consensus::encode::{self, Decodable, Encodable, VarInt};
-use crate::internal_macros::{impl_array_newtype_stringify, impl_consensus_encoding};
-use crate::prelude::Vec;
-use crate::transaction::TxIdentifier;
+use crate::internal_macros::{impl_bytes_newtype, impl_consensus_encoding};
+use crate::prelude::*;
 use crate::{block, Block, BlockHash, Transaction};
 
 /// A BIP-152 error
@@ -50,7 +50,7 @@ impl std::error::Error for Error {
     }
 }
 
-/// A [`PrefilledTransaction`] structure is used in [`HeaderAndShortIds`] to
+/// A [PrefilledTransaction] structure is used in [HeaderAndShortIds] to
 /// provide a list of a few transactions explicitly.
 #[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord, Hash)]
 pub struct PrefilledTransaction {
@@ -97,16 +97,20 @@ impl Decodable for PrefilledTransaction {
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Default, PartialOrd, Ord)]
 pub struct ShortId([u8; 6]);
 impl_array_newtype!(ShortId, u8, 6);
-impl_array_newtype_stringify!(ShortId, 6);
+impl_bytes_newtype!(ShortId, 6);
 
 impl ShortId {
-    /// Calculates the SipHash24 keys used to calculate short IDs.
+    /// Calculate the SipHash24 keys used to calculate short IDs.
     pub fn calculate_siphash_keys(header: &block::Header, nonce: u64) -> (u64, u64) {
         // 1. single-SHA256 hashing the block header with the nonce appended (in little-endian)
         let h = {
             let mut engine = sha256::Hash::engine();
-            header.consensus_encode(&mut engine).expect("engines don't error");
-            nonce.consensus_encode(&mut engine).expect("engines don't error");
+            header
+                .consensus_encode(&mut engine)
+                .expect("engines don't error");
+            nonce
+                .consensus_encode(&mut engine)
+                .expect("engines don't error");
             sha256::Hash::from_engine(engine)
         };
 
@@ -118,8 +122,8 @@ impl ShortId {
         )
     }
 
-    /// Calculates the short ID with the given (w)txid and using the provided SipHash keys.
-    pub fn with_siphash_keys<T: TxIdentifier>(txid: &T, siphash_keys: (u64, u64)) -> ShortId {
+    /// Calculate the short ID with the given (w)txid and using the provided SipHash keys.
+    pub fn with_siphash_keys<T: AsRef<[u8]>>(txid: &T, siphash_keys: (u64, u64)) -> ShortId {
         // 2. Running SipHash-2-4 with the input being the transaction ID and the keys (k0/k1)
         // set to the first two little-endian 64-bit integers from the above hash, respectively.
         let hash = siphash24::Hash::hash_with_keys(siphash_keys.0, siphash_keys.1, txid.as_ref());
@@ -145,9 +149,7 @@ impl Decodable for ShortId {
     }
 }
 
-/// A structure to relay a block header, short IDs, and a select few transactions.
-///
-/// A [`HeaderAndShortIds`] structure is used to relay a block header, the short
+/// A [HeaderAndShortIds] structure is used to relay a block header, the short
 /// transactions IDs used for matching already-available transactions, and a
 /// select few transactions which we expect a peer may be missing.
 #[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord, Hash)]
@@ -163,35 +165,10 @@ pub struct HeaderAndShortIds {
     ///  which we expect a peer may be missing.
     pub prefilled_txs: Vec<PrefilledTransaction>,
 }
-
-impl Decodable for HeaderAndShortIds {
-    fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
-        let header_short_ids = HeaderAndShortIds {
-            header: Decodable::consensus_decode(r)?,
-            nonce: Decodable::consensus_decode(r)?,
-            short_ids: Decodable::consensus_decode(r)?,
-            prefilled_txs: Decodable::consensus_decode(r)?,
-        };
-        match header_short_ids.short_ids.len().checked_add(header_short_ids.prefilled_txs.len()) {
-            Some(x) if x <= u16::MAX.into() => Ok(header_short_ids),
-            _ => Err(encode::Error::ParseFailed("indexes overflowed 16 bits")),
-        }
-    }
-}
-
-impl Encodable for HeaderAndShortIds {
-    fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
-        let mut len = 0;
-        len += self.header.consensus_encode(w)?;
-        len += self.nonce.consensus_encode(w)?;
-        len += self.short_ids.consensus_encode(w)?;
-        len += self.prefilled_txs.consensus_encode(w)?;
-        Ok(len)
-    }
-}
+impl_consensus_encoding!(HeaderAndShortIds, header, nonce, short_ids, prefilled_txs);
 
 impl HeaderAndShortIds {
-    /// Creates a new [`HeaderAndShortIds`] from a full block.
+    /// Create a new [HeaderAndShortIds] from a full block.
     ///
     /// The version number must be either 1 or 2.
     ///
@@ -247,14 +224,14 @@ impl HeaderAndShortIds {
                     },
                 });
             } else {
-                match version {
-                    1 => {
-                        short_ids.push(ShortId::with_siphash_keys(&tx.compute_txid(), siphash_keys))
-                    }
-                    2 => short_ids
-                        .push(ShortId::with_siphash_keys(&tx.compute_wtxid(), siphash_keys)),
-                    _ => unreachable!(),
-                }
+                short_ids.push(ShortId::with_siphash_keys(
+                    &match version {
+                        1 => tx.compute_txid().to_raw_hash(),
+                        2 => tx.compute_wtxid().to_raw_hash(),
+                        _ => unreachable!(),
+                    },
+                    siphash_keys,
+                ));
             }
         }
 
@@ -272,7 +249,7 @@ impl HeaderAndShortIds {
     }
 }
 
-/// A [`BlockTransactionsRequest`] structure is used to list transaction indexes
+/// A [BlockTransactionsRequest] structure is used to list transaction indexes
 /// in a block being requested.
 #[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord, Hash)]
 pub struct BlockTransactionsRequest {
@@ -292,7 +269,7 @@ impl Encodable for BlockTransactionsRequest {
     fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
         let mut len = self.block_hash.consensus_encode(w)?;
         // Manually encode indexes because they are differentially encoded VarInts.
-        len += VarInt(self.indexes.len().to_u64()).consensus_encode(w)?;
+        len += VarInt(self.indexes.len() as u64).consensus_encode(w)?;
         let mut last_idx = 0;
         for idx in &self.indexes {
             len += VarInt(*idx - last_idx).consensus_encode(w)?;
@@ -315,7 +292,7 @@ impl Decodable for BlockTransactionsRequest {
                 // transactions that would be allowed in a vector.
                 let byte_size = (nb_indexes)
                     .checked_mul(mem::size_of::<Transaction>())
-                    .ok_or(encode::Error::ParseFailed("invalid length"))?;
+                    .ok_or(encode::Error::ParseFailed("Invalid length"))?;
                 if byte_size > encode::MAX_VEC_SIZE {
                     return Err(encode::Error::OversizedVectorAllocation {
                         requested: byte_size,
@@ -367,7 +344,7 @@ impl error::Error for TxIndexOutOfRangeError {
     }
 }
 
-/// A [`BlockTransactions`] structure is used to provide some of the transactions
+/// A [BlockTransactions] structure is used to provide some of the transactions
 /// in a block, as requested.
 #[derive(PartialEq, Eq, Clone, Debug, PartialOrd, Ord, Hash)]
 pub struct BlockTransactions {
@@ -379,8 +356,8 @@ pub struct BlockTransactions {
 impl_consensus_encoding!(BlockTransactions, block_hash, transactions);
 
 impl BlockTransactions {
-    /// Constructs a [`BlockTransactions`] from a [`BlockTransactionsRequest`] and
-    /// the corresponding full [`Block`] by providing all requested transactions.
+    /// Construct a [BlockTransactions] from a [BlockTransactionsRequest] and
+    /// the corresponding full [Block] by providing all requested transactions.
     pub fn from_request(
         request: &BlockTransactionsRequest,
         block: &Block,
@@ -390,7 +367,7 @@ impl BlockTransactions {
             transactions: {
                 let mut txs = Vec::with_capacity(request.indexes.len());
                 for idx in &request.indexes {
-                    if *idx >= block.txdata.len().to_u64() {
+                    if *idx >= block.txdata.len() as u64 {
                         return Err(TxIndexOutOfRangeError(*idx));
                     }
                     txs.push(block.txdata[*idx as usize].clone());

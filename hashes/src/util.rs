@@ -192,26 +192,23 @@ macro_rules! hash_newtype {
         $crate::serde_impl!($newtype, <$newtype as $crate::Hash>::LEN);
         $crate::borrow_slice_impl!($newtype);
 
-        #[allow(unused)] // Private wrapper types may not need all functions.
         impl $newtype {
-            /// Copies a byte slice into a hash object.
-            pub fn from_slice(sl: &[u8]) -> $crate::_export::_core::result::Result<$newtype, $crate::FromSliceError> {
-                Ok($newtype(<$hash as $crate::Hash>::from_slice(sl)?))
+            /// Creates this wrapper type from the inner hash type.
+            #[allow(unused)] // the user of macro may not need this
+            pub fn from_raw_hash(inner: $hash) -> $newtype {
+                $newtype(inner)
             }
 
-            /// Returns the underlying byte array.
-            pub const fn to_byte_array(self) -> <$hash as $crate::Hash>::Bytes {
-                self.0.to_byte_array()
+            /// Returns the inner hash (sha256, sh256d etc.).
+            #[allow(unused)] // the user of macro may not need this
+            pub fn to_raw_hash(self) -> $hash {
+                self.0
             }
 
-            /// Returns a reference to the underlying byte array.
-            pub const fn as_byte_array(&self) -> &<$hash as $crate::Hash>::Bytes {
-                self.0.as_byte_array()
-            }
-
-            /// Constructs a hash from the underlying byte array.
-            pub const fn from_byte_array(bytes: <$hash as $crate::Hash>::Bytes) -> Self {
-                $newtype(<$hash>::from_byte_array(bytes))
+            /// Returns a reference to the inner hash (sha256, sh256d etc.).
+            #[allow(unused)] // the user of macro may not need this
+            pub fn as_raw_hash(&self) -> &$hash {
+                &self.0
             }
         }
 
@@ -229,26 +226,51 @@ macro_rules! hash_newtype {
         }
 
         impl $crate::Hash for $newtype {
+            type Engine = <$hash as $crate::Hash>::Engine;
             type Bytes = <$hash as $crate::Hash>::Bytes;
 
+            const LEN: usize = <$hash as $crate::Hash>::LEN;
             const DISPLAY_BACKWARD: bool = $crate::hash_newtype_get_direction!($hash, $(#[$($type_attrs)*])*);
+
+            fn engine() -> Self::Engine {
+                <$hash as $crate::Hash>::engine()
+            }
+
+            fn from_engine(e: Self::Engine) -> Self {
+                Self::from(<$hash as $crate::Hash>::from_engine(e))
+            }
 
             #[inline]
             fn from_slice(sl: &[u8]) -> $crate::_export::_core::result::Result<$newtype, $crate::FromSliceError> {
-                Self::from_slice(sl)
+                Ok($newtype(<$hash as $crate::Hash>::from_slice(sl)?))
             }
 
-            fn to_byte_array(self) -> Self::Bytes { self.to_byte_array() }
+            #[inline]
+            fn from_byte_array(bytes: Self::Bytes) -> Self {
+                $newtype(<$hash as $crate::Hash>::from_byte_array(bytes))
+            }
 
-            fn as_byte_array(&self) -> &Self::Bytes { self.as_byte_array() }
+            #[inline]
+            fn to_byte_array(self) -> Self::Bytes {
+                self.0.to_byte_array()
+            }
 
-            fn from_byte_array(bytes: Self::Bytes) -> Self { Self::from_byte_array(bytes) }
+            #[inline]
+            fn as_byte_array(&self) -> &Self::Bytes {
+                self.0.as_byte_array()
+            }
+
+            #[inline]
+            fn all_zeros() -> Self {
+                let zeros = <$hash>::all_zeros();
+                $newtype(zeros)
+            }
         }
 
         impl $crate::_export::_core::str::FromStr for $newtype {
             type Err = $crate::hex::HexToArrayError;
             fn from_str(s: &str) -> $crate::_export::_core::result::Result<$newtype, Self::Err> {
-                use $crate::{hex::FromHex};
+                use $crate::{Hash, hex::FromHex};
 
                 let mut bytes = <[u8; <Self as $crate::Hash>::LEN]>::from_hex(s)?;
                 if <Self as $crate::Hash>::DISPLAY_BACKWARD {
@@ -338,10 +360,10 @@ macro_rules! hash_newtype_get_direction {
 macro_rules! hash_newtype_forbid_direction {
     ($direction:ident, ) => {};
     ($direction:ident, #[hash_newtype(forward)] $(others:tt)*) => {
-        compile_error!(concat!("cannot set display direction to forward: ", stringify!($direction), " was already specified"));
+        compile_error!(concat!("Cannot set display direction to forward: ", stringify!($direction), " was already specified"));
     };
     ($direction:ident, #[hash_newtype(backward)] $(others:tt)*) => {
-        compile_error!(concat!("cannot set display direction to backward: ", stringify!($direction), " was already specified"));
+        compile_error!(concat!("Cannot set display direction to backward: ", stringify!($direction), " was already specified"));
     };
     ($direction:ident, #[$($ignore:tt)*] $(#[$others:tt])*) => {
         $crate::hash_newtype_forbid_direction!($direction, $(#[$others])*)
@@ -358,6 +380,6 @@ macro_rules! hash_newtype_forbid_direction {
 macro_rules! hash_newtype_known_attrs {
     (#[hash_newtype(forward)]) => {};
     (#[hash_newtype(backward)]) => {};
-    (#[hash_newtype($($unknown:tt)*)]) => { compile_error!(concat!("unrecognized attribute ", stringify!($($unknown)*))); };
+    (#[hash_newtype($($unknown:tt)*)]) => { compile_error!(concat!("Unrecognized attribute ", stringify!($($unknown)*))); };
     ($($ignore:tt)*) => {};
 }

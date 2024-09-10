@@ -4,36 +4,37 @@
 //!
 //! Raw PSBT key-value pairs as defined at
 //! <https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki>.
+//!
 
 use core::fmt;
 
-use internals::ToU64 as _;
 use io::{BufRead, Write};
 
 use super::serialize::{Deserialize, Serialize};
 use crate::consensus::encode::{
     self, deserialize, serialize, Decodable, Encodable, ReadExt, VarInt, WriteExt, MAX_VEC_SIZE,
 };
-use crate::prelude::{DisplayHex, Vec};
+use crate::prelude::*;
 use crate::psbt::Error;
 
 /// A PSBT key in its raw byte form.
-///
-/// `<key> := <keylen> <keytype> <keydata>`
 #[derive(Debug, PartialEq, Hash, Eq, Clone, Ord, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Key {
     /// The type of this PSBT key.
     pub type_value: u8,
-    /// The key data itself in raw byte form.
+    /// The key itself in raw byte form.
+    /// `<key> := <keylen> <keytype> <keydata>`
     #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::hex_bytes"))]
-    pub key_data: Vec<u8>,
+    pub key: Vec<u8>,
 }
 
 /// A PSBT key-value pair in its raw byte form.
 /// `<keypair> := <key> <value>`
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Pair {
     /// The key of this key-value pair.
     pub key: Key,
@@ -50,6 +51,7 @@ pub type ProprietaryType = u8;
 /// structure according to BIP 174.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct ProprietaryKey<Subtype = ProprietaryType>
 where
     Subtype: Copy + From<u8> + Into<u8>,
@@ -67,7 +69,7 @@ where
 
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "type: {:#x}, key: {:x}", self.type_value, self.key_data.as_hex())
+        write!(f, "type: {:#x}, key: {:x}", self.type_value, self.key.as_hex())
     }
 }
 
@@ -81,7 +83,7 @@ impl Key {
 
         let key_byte_size: u64 = byte_size - 1;
 
-        if key_byte_size > MAX_VEC_SIZE.to_u64() {
+        if key_byte_size > MAX_VEC_SIZE as u64 {
             return Err(encode::Error::OversizedVectorAllocation {
                 requested: key_byte_size as usize,
                 max: MAX_VEC_SIZE,
@@ -91,25 +93,25 @@ impl Key {
 
         let type_value: u8 = Decodable::consensus_decode(r)?;
 
-        let mut key_data = Vec::with_capacity(key_byte_size as usize);
+        let mut key = Vec::with_capacity(key_byte_size as usize);
         for _ in 0..key_byte_size {
-            key_data.push(Decodable::consensus_decode(r)?);
+            key.push(Decodable::consensus_decode(r)?);
         }
 
-        Ok(Key { type_value, key_data })
+        Ok(Key { type_value, key })
     }
 }
 
 impl Serialize for Key {
     fn serialize(&self) -> Vec<u8> {
         let mut buf = Vec::new();
-        VarInt::from(self.key_data.len() + 1)
+        VarInt::from(self.key.len() + 1)
             .consensus_encode(&mut buf)
             .expect("in-memory writers don't error");
 
         self.type_value.consensus_encode(&mut buf).expect("in-memory writers don't error");
 
-        for key in &self.key_data {
+        for key in &self.key {
             key.consensus_encode(&mut buf).expect("in-memory writers don't error");
         }
 
@@ -175,7 +177,7 @@ where
     Subtype: Copy + From<u8> + Into<u8>,
 {
     /// Constructs full [Key] corresponding to this proprietary key type
-    pub fn to_key(&self) -> Key { Key { type_value: 0xFC, key_data: serialize(self) } }
+    pub fn to_key(&self) -> Key { Key { type_value: 0xFC, key: serialize(self) } }
 }
 
 impl<Subtype> TryFrom<Key> for ProprietaryKey<Subtype>
@@ -187,13 +189,12 @@ where
     /// Constructs a [`ProprietaryKey`] from a [`Key`].
     ///
     /// # Errors
-    ///
     /// Returns [`Error::InvalidProprietaryKey`] if `key` does not start with `0xFC` byte.
     fn try_from(key: Key) -> Result<Self, Self::Error> {
         if key.type_value != 0xFC {
             return Err(Error::InvalidProprietaryKey);
         }
 
-        Ok(deserialize(&key.key_data)?)
+        Ok(deserialize(&key.key)?)
     }
 }

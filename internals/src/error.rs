@@ -3,6 +3,7 @@
 //! # Error
 //!
 //! Error handling macros and helpers.
+//!
 
 pub mod input_string;
 mod parse_error;

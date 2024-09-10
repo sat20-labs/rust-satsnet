@@ -5,8 +5,8 @@ use core::fmt;
 use internals::write_err;
 
 use crate::address::{Address, NetworkUnchecked};
-use crate::prelude::String;
-use crate::script::{witness_program, witness_version};
+use crate::blockdata::script::{witness_program, witness_version};
+use crate::prelude::*;
 use crate::Network;
 
 /// Error while generating address from script.
@@ -54,6 +54,37 @@ impl From<witness_program::Error> for FromScriptError {
 
 impl From<witness_version::TryFromError> for FromScriptError {
     fn from(e: witness_version::TryFromError) -> Self { Self::WitnessVersion(e) }
+}
+
+/// Error while generating address from a p2sh script.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum P2shError {
+    /// Address size more than 520 bytes is not allowed.
+    ExcessiveScriptSize,
+}
+
+internals::impl_from_infallible!(P2shError);
+
+impl fmt::Display for P2shError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use P2shError::*;
+
+        match *self {
+            ExcessiveScriptSize => write!(f, "script size exceed 520 bytes"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for P2shError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use P2shError::*;
+
+        match self {
+            ExcessiveScriptSize => None,
+        }
+    }
 }
 
 /// Address type is either invalid or not supported in rust-bitcoin.

@@ -1,18 +1,6 @@
 [workspace]
-members = [
-    "addresses",
-    "base58",
-    "satsnet",
-    "hashes",
-    "internals",
-    "io",
-    "primitives",
-    "units",
-]
+members = ["satsnet", "hashes", "internals", "io", "units", "base58"]
 resolver = "2"
-
-[patch.crates-io.satsnet-addresses]
-path = "addresses"
 
 [patch.crates-io.satsnet-base58ck]
 path = "base58"
@@ -28,9 +16,6 @@ path = "internals"
 
 [patch.crates-io.satsnet-io]
 path = "io"
-
-[patch.crates-io.satsnet-primitives]
-path = "primitives"
 
 [patch.crates-io.satsnet-units]
 path = "units"

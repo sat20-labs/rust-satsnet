@@ -2,6 +2,7 @@
 
 //!
 //! BIP152  Compact Blocks network messages
+//!
 
 use crate::bip152;
 use crate::internal_macros::impl_consensus_encoding;

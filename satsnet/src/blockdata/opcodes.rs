@@ -4,6 +4,7 @@
 //!
 //! Bitcoin's script uses a stack-based assembly language. This module defines
 //! all of the opcodes for that language.
+//!
 
 #![allow(non_camel_case_types)]
 
@@ -12,7 +13,7 @@ use core::fmt;
 use internals::debug_from_display;
 
 #[cfg(feature = "serde")]
-use crate::prelude::ToString;
+use crate::prelude::*;
 
 /// A script Opcode.
 ///
@@ -431,7 +432,7 @@ impl Opcode {
     ///
     /// Returns `None` if `self` is not a PUSHNUM.
     #[inline]
-    pub const fn decode_pushnum(self) -> Option<u8> {
+    pub(crate) const fn decode_pushnum(self) -> Option<u8> {
         const START: u8 = OP_PUSHNUM_1.code;
         const END: u8 = OP_PUSHNUM_16.code;
         match self.code {

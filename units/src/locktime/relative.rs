@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: CC0-1.0
 
-//! Provides [`Height`] and [`Time`] types used by the `rust-bitcoin` `relative::LockTime` type.
+//! Provides type `Height` and `Time` types used by the `rust-bitcoin` `relative::LockTime` type.
 
 use core::fmt;
 
@@ -20,46 +20,36 @@ impl Height {
     pub const MIN: Self = Self::ZERO;
 
     /// The maximum relative block height.
-    pub const MAX: Self = Height(u16::MAX);
+    pub const MAX: Self = Height(u16::max_value());
 
     /// Create a [`Height`] using a count of blocks.
     #[inline]
-    pub const fn from_height(blocks: u16) -> Self {
-        Height(blocks)
-    }
+    pub const fn from_height(blocks: u16) -> Self { Height(blocks) }
 
     /// Returns the inner `u16` value.
     #[inline]
-    pub fn value(self) -> u16 {
-        self.0
-    }
+    pub fn value(self) -> u16 { self.0 }
 
     /// Returns the `u32` value used to encode this locktime in an nSequence field or
     /// argument to `OP_CHECKSEQUENCEVERIFY`.
     #[inline]
-    pub fn to_consensus_u32(&self) -> u32 {
-        self.0.into()
-    }
+    pub fn to_consensus_u32(&self) -> u32 { self.0.into() }
 }
 
 impl From<u16> for Height {
     #[inline]
-    fn from(value: u16) -> Self {
-        Height(value)
-    }
+    fn from(value: u16) -> Self { Height(value) }
 }
 
 crate::impl_parse_str_from_int_infallible!(Height, u16, from);
 
 impl fmt::Display for Height {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
 }
 
 /// A relative lock time lock-by-blocktime value.
 ///
-/// For BIP 68 relative lock-by-blocktime locks, time is measured in 512 second intervals.
+/// For BIP 68 relative lock-by-blocktime locks, time is measure in 512 second intervals.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Time(u16);
@@ -72,17 +62,15 @@ impl Time {
     pub const MIN: Self = Time::ZERO;
 
     /// The maximum relative block time (33,554,432 seconds or approx 388 days).
-    pub const MAX: Self = Time(u16::MAX);
+    pub const MAX: Self = Time(u16::max_value());
 
-    /// Creates a [`Time`] using time intervals where each interval is equivalent to 512 seconds.
+    /// Create a [`Time`] using time intervals where each interval is equivalent to 512 seconds.
     ///
     /// Encoding finer granularity of time for relative lock-times is not supported in Bitcoin.
     #[inline]
-    pub const fn from_512_second_intervals(intervals: u16) -> Self {
-        Time(intervals)
-    }
+    pub const fn from_512_second_intervals(intervals: u16) -> Self { Time(intervals) }
 
-    /// Creates a [`Time`] from seconds, converting the seconds into 512 second interval with
+    /// Create a [`Time`] from seconds, converting the seconds into 512 second interval with
     /// truncating division.
     ///
     /// # Errors
@@ -99,8 +87,8 @@ impl Time {
         }
     }
 
-    /// Creates a [`Time`] from seconds, converting the seconds into 512 second intervals with
-    /// ceiling division.
+    /// Create a [`Time`] from seconds, converting the seconds into 512 second interval with ceiling
+    /// division.
     ///
     /// # Errors
     ///
@@ -108,8 +96,8 @@ impl Time {
     #[inline]
     #[rustfmt::skip] // moves comments to unrelated code
     pub const fn from_seconds_ceil(seconds: u32) -> Result<Self, TimeOverflowError> {
-        if seconds <= u16::MAX as u32 * 512 {
-            let interval = (seconds + 511) / 512;
+        let interval = (seconds + 511) / 512;
+        if interval <= u16::MAX as u32 { // infallible cast, needed by const code
             Ok(Time::from_512_second_intervals(interval as u16)) // cast checked above, needed by const code
         } else {
             Err(TimeOverflowError { seconds })
@@ -118,24 +106,18 @@ impl Time {
 
     /// Returns the inner `u16` value.
     #[inline]
-    pub fn value(self) -> u16 {
-        self.0
-    }
+    pub fn value(self) -> u16 { self.0 }
 
     /// Returns the `u32` value used to encode this locktime in an nSequence field or
     /// argument to `OP_CHECKSEQUENCEVERIFY`.
     #[inline]
-    pub fn to_consensus_u32(&self) -> u32 {
-        (1u32 << 22) | u32::from(self.0)
-    }
+    pub fn to_consensus_u32(&self) -> u32 { (1u32 << 22) | u32::from(self.0) }
 }
 
 crate::impl_parse_str_from_int_infallible!(Time, u16, from_512_second_intervals);
 
 impl fmt::Display for Time {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
 }
 
 /// Input time in seconds was too large to be encoded to a 16 bit 512 second interval.

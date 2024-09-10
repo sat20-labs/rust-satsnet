@@ -4,22 +4,22 @@
 //!
 //! Provides the [`Work`] and [`Target`] types that are used in proof-of-work calculations. The
 //! functions here are designed to be fast, by that we mean it is safe to use them to check headers.
+//!
 
+use core::cmp;
+use core::fmt::{self, LowerHex, UpperHex};
 use core::ops::{Add, Div, Mul, Not, Rem, Shl, Shr, Sub};
-use core::{cmp, fmt};
 
-use internals::impl_to_hex_from_lower_hex;
 use io::{BufRead, Write};
-use units::parse::{self, ParseIntError, PrefixedHexError, UnprefixedHexError};
 
-use crate::block::{BlockHash, Header};
+use units::parse;
+
+use crate::blockdata::block::BlockHash;
 use crate::consensus::encode::{self, Decodable, Encodable};
-use crate::internal_macros::define_extension_trait;
-use crate::network::Params;
-
-#[rustfmt::skip]                // Keep public re-exports separate.
-#[doc(inline)]
-pub use primitives::CompactTarget;
+use crate::consensus::Params;
+use crate::error::{
+    ContainsPrefixError, MissingPrefixError, ParseIntError, PrefixedHexError, UnprefixedHexError,
+};
 
 /// Implement traits and methods shared by `Target` and `Work`.
 macro_rules! do_impl {
@@ -100,6 +100,7 @@ macro_rules! do_impl {
 /// Work is a measure of how difficult it is to find a hash below a given [`Target`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Work(U256);
 
 impl Work {
@@ -119,7 +120,6 @@ impl Work {
     }
 }
 do_impl!(Work);
-impl_to_hex_from_lower_hex!(Work, |_| 64);
 
 impl Add for Work {
     type Output = Work;
@@ -144,6 +144,7 @@ impl Sub for Work {
 /// ref: <https://en.bitcoin.it/wiki/Target>
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Target(U256);
 
 impl Target {
@@ -185,7 +186,7 @@ impl Target {
     ///
     /// ref: <https://developer.bitcoin.org/reference/block_chain.html#target-nbits>
     pub fn from_compact(c: CompactTarget) -> Target {
-        let bits = c.to_consensus();
+        let bits = c.0;
         // This is a floating-point "compact" encoding originally used by
         // OpenSSL, which satoshi put into consensus code, so we're stuck
         // with it. The exponent needs to have 3 subtracted from it, hence
@@ -225,7 +226,7 @@ impl Target {
             size += 1;
         }
 
-        CompactTarget::from_consensus(compact | (size << 24))
+        CompactTarget(compact | (size << 24))
     }
 
     /// Returns true if block hash is less than or equal to this [`Target`].
@@ -234,6 +235,7 @@ impl Target {
     /// to the target.
     #[cfg_attr(all(test, mutate), mutate)]
     pub fn is_met_by(&self, hash: BlockHash) -> bool {
+        use hashes::Hash;
         let hash = U256::from_le_bytes(hash.to_byte_array());
         hash <= self.0
     }
@@ -270,7 +272,7 @@ impl Target {
     /// Panics if `self` is zero (divide by zero).
     ///
     /// [max]: Target::max
-    /// [target]: crate::block::Header::target
+    /// [target]: crate::blockdata::block::Header::target
     #[cfg_attr(all(test, mutate), mutate)]
     pub fn difficulty(&self, params: impl AsRef<Params>) -> u128 {
         // Panic here may be eaiser to debug than during the actual division.
@@ -285,19 +287,14 @@ impl Target {
     ///
     /// See [`difficulty`] for details.
     ///
-    /// # Panics
+    /// # Returns
     ///
-    /// Panics if `self` is zero (divide by zero).
+    /// Returns [`f64::INFINITY`] if `self` is zero (caused by divide by zero).
     ///
     /// [`difficulty`]: Target::difficulty
     #[cfg_attr(all(test, mutate), mutate)]
-    pub fn difficulty_float(&self, params: impl AsRef<Params>) -> f64 {
-        // We want to explicitly panic to be uniform with `difficulty()`
-        // (float division by zero does not panic).
-        // Note, target 0 is basically impossible to obtain by any "normal" means.
-        assert_ne!(self.0, U256::ZERO, "divide by zero");
-        let max = params.as_ref().max_attainable_target;
-        max.0.to_f64() / self.0.to_f64()
+    pub fn difficulty_float(&self) -> f64 {
+        TARGET_MAX_F64 / self.0.to_f64()
     }
 
     /// Computes the minimum valid [`Target`] threshold allowed for a block in which a difficulty
@@ -357,98 +354,51 @@ impl Target {
     }
 }
 do_impl!(Target);
-impl_to_hex_from_lower_hex!(Target, |_| 64);
 
-define_extension_trait! {
-    /// Extension functionality for the [`CompactTarget`] type.
-    pub trait CompactTargetExt impl for CompactTarget {
-        /// Creates a `CompactTarget` from a prefixed hex string.
-        fn from_hex(s: &str) -> Result<CompactTarget, PrefixedHexError> {
-            let target = parse::hex_u32_prefixed(s)?;
-            Ok(Self::from_consensus(target))
-        }
+/// Encoding of 256-bit target as 32-bit float.
+///
+/// This is used to encode a target into the block header. Satoshi made this part of consensus code
+/// in the original version of Bitcoin, likely copying an idea from OpenSSL.
+///
+/// OpenSSL's bignum (BN) type has an encoding, which is even called "compact" as in bitcoin, which
+/// is exactly this format.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
+pub struct CompactTarget(u32);
 
-        /// Creates a `CompactTarget` from an unprefixed hex string.
-        fn from_unprefixed_hex(s: &str) -> Result<CompactTarget, UnprefixedHexError> {
-            let target = parse::hex_u32_unprefixed(s)?;
-            Ok(Self::from_consensus(target))
-        }
+impl CompactTarget {
+    /// Creates a `CompactTarget` from an prefixed hex string.
+    pub fn from_hex(s: &str) -> Result<Self, PrefixedHexError> {
+        let stripped = if let Some(stripped) = s.strip_prefix("0x") {
+            stripped
+        } else if let Some(stripped) = s.strip_prefix("0X") {
+            stripped
+        } else {
+            return Err(MissingPrefixError::new(s).into());
+        };
 
-        /// Computes the [`CompactTarget`] from a difficulty adjustment.
-        ///
-        /// ref: <https://github.com/bitcoin/bitcoin/blob/0503cbea9aab47ec0a87d34611e5453158727169/src/pow.cpp>
-        ///
-        /// Given the previous Target, represented as a [`CompactTarget`], the difficulty is adjusted
-        /// by taking the timespan between them, and multipling the current [`CompactTarget`] by a factor
-        /// of the net timespan and expected timespan. The [`CompactTarget`] may not adjust by more than
-        /// a factor of 4, or adjust beyond the maximum threshold for the network.
-        ///
-        /// # Note
-        ///
-        /// Under the consensus rules, the difference in the number of blocks between the headers does
-        /// not equate to the `difficulty_adjustment_interval` of [`Params`]. This is due to an off-by-one
-        /// error, and, the expected number of blocks in between headers is `difficulty_adjustment_interval - 1`
-        /// when calculating the difficulty adjustment.
-        ///
-        /// Take the example of the first difficulty adjustment. Block 2016 introduces a new [`CompactTarget`],
-        /// which takes the net timespan between Block 2015 and Block 0, and recomputes the difficulty.
-        ///
-        /// # Returns
-        ///
-        /// The expected [`CompactTarget`] recalculation.
-        fn from_next_work_required(
-            last: CompactTarget,
-            timespan: u64,
-            params: impl AsRef<Params>,
-        ) -> CompactTarget {
-            let params = params.as_ref();
-            if params.no_pow_retargeting {
-                return last;
-            }
-            // Comments relate to the `pow.cpp` file from Core.
-            // ref: <https://github.com/bitcoin/bitcoin/blob/0503cbea9aab47ec0a87d34611e5453158727169/src/pow.cpp>
-            let min_timespan = params.pow_target_timespan >> 2; // Lines 56/57
-            let max_timespan = params.pow_target_timespan << 2; // Lines 58/59
-            let actual_timespan = timespan.clamp(min_timespan, max_timespan);
-            let prev_target: Target = last.into();
-            let maximum_retarget = prev_target.max_transition_threshold(params); // bnPowLimit
-            let retarget = prev_target.0; // bnNew
-            let retarget = retarget.mul(actual_timespan.into());
-            let retarget = retarget.div(params.pow_target_timespan.into());
-            let retarget = Target(retarget);
-            if retarget.ge(&maximum_retarget) {
-                return maximum_retarget.to_compact_lossy();
-            }
-            retarget.to_compact_lossy()
-        }
+        let target = parse::hex_u32(stripped)?;
+        Ok(Self::from_consensus(target))
+    }
 
-        /// Computes the [`CompactTarget`] from a difficulty adjustment,
-        /// assuming these are the relevant block headers.
-        ///
-        /// Given two headers, representing the start and end of a difficulty adjustment epoch,
-        /// compute the [`CompactTarget`] based on the net time between them and the current
-        /// [`CompactTarget`].
-        ///
-        /// # Note
-        ///
-        /// See [`CompactTarget::from_next_work_required`]
-        ///
-        /// For example, to successfully compute the first difficulty adjustment on the Bitcoin network,
-        /// one would pass the header for Block 2015 as `current` and the header for Block 0 as
-        /// `last_epoch_boundary`.
-        ///
-        /// # Returns
-        ///
-        /// The expected [`CompactTarget`] recalculation.
-        fn from_header_difficulty_adjustment(
-            last_epoch_boundary: Header,
-            current: Header,
-            params: impl AsRef<Params>,
-        ) -> CompactTarget {
-            let timespan = current.time - last_epoch_boundary.time;
-            let bits = current.bits;
-            CompactTarget::from_next_work_required(bits, timespan.into(), params)
+    /// Creates a `CompactTarget` from an unprefixed hex string.
+    pub fn from_unprefixed_hex(s: &str) -> Result<Self, UnprefixedHexError> {
+        if s.starts_with("0x") || s.starts_with("0X") {
+            return Err(ContainsPrefixError::new(s).into());
         }
+        let lock_time = parse::hex_u32(s)?;
+        Ok(Self::from_consensus(lock_time))
+    }
+
+    /// Creates a [`CompactTarget`] from a consensus encoded `u32`.
+    pub fn from_consensus(bits: u32) -> Self {
+        Self(bits)
+    }
+
+    /// Returns the consensus encoded `u32` representation of this [`CompactTarget`].
+    pub fn to_consensus(self) -> u32 {
+        self.0
     }
 }
 
@@ -461,14 +411,28 @@ impl From<CompactTarget> for Target {
 impl Encodable for CompactTarget {
     #[inline]
     fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
-        self.to_consensus().consensus_encode(w)
+        self.0.consensus_encode(w)
     }
 }
 
 impl Decodable for CompactTarget {
     #[inline]
     fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
-        u32::consensus_decode(r).map(CompactTarget::from_consensus)
+        u32::consensus_decode(r).map(CompactTarget)
+    }
+}
+
+impl LowerHex for CompactTarget {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        LowerHex::fmt(&self.0, f)
+    }
+}
+
+impl UpperHex for CompactTarget {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        UpperHex::fmt(&self.0, f)
     }
 }
 
@@ -478,8 +442,10 @@ impl Decodable for CompactTarget {
 struct U256(u128, u128);
 
 impl U256 {
-    const MAX: U256 =
-        U256(0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff, 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff);
+    const MAX: U256 = U256(
+        0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff,
+        0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff,
+    );
 
     const ZERO: U256 = U256(0, 0);
 
@@ -487,28 +453,36 @@ impl U256 {
 
     /// Creates a `U256` from a prefixed hex string.
     fn from_hex(s: &str) -> Result<Self, PrefixedHexError> {
-        let checked = parse::hex_remove_prefix(s)?;
-        Ok(U256::from_hex_internal(checked)?)
+        let stripped = if let Some(stripped) = s.strip_prefix("0x") {
+            stripped
+        } else if let Some(stripped) = s.strip_prefix("0X") {
+            stripped
+        } else {
+            return Err(MissingPrefixError::new(s).into());
+        };
+        Ok(U256::from_hex_internal(stripped)?)
     }
 
     /// Creates a `U256` from an unprefixed hex string.
     fn from_unprefixed_hex(s: &str) -> Result<Self, UnprefixedHexError> {
-        let checked = parse::hex_check_unprefixed(s)?;
-        Ok(U256::from_hex_internal(checked)?)
+        if s.starts_with("0x") || s.starts_with("0X") {
+            return Err(ContainsPrefixError::new(s).into());
+        }
+        Ok(U256::from_hex_internal(s)?)
     }
 
     // Caller to ensure `s` does not contain a prefix.
     fn from_hex_internal(s: &str) -> Result<Self, ParseIntError> {
-        let (high, low) = if s.len() <= 32 {
-            let low = parse::hex_u128_unchecked(s)?;
+        let (high, low) = if s.len() < 32 {
+            let low = parse::hex_u128(s)?;
             (0, low)
         } else {
             let high_len = s.len() - 32;
             let high_s = &s[..high_len];
             let low_s = &s[high_len..];
 
-            let high = parse::hex_u128_unchecked(high_s)?;
-            let low = parse::hex_u128_unchecked(low_s)?;
+            let high = parse::hex_u128(high_s)?;
+            let low = parse::hex_u128(low_s)?;
             (high, low)
         };
 
@@ -636,8 +610,12 @@ impl U256 {
     #[cfg_attr(all(test, mutate), mutate)]
     fn mul_u64(self, rhs: u64) -> (U256, bool) {
         let mut carry: u128 = 0;
-        let mut split_le =
-            [self.1 as u64, (self.1 >> 64) as u64, self.0 as u64, (self.0 >> 64) as u64];
+        let mut split_le = [
+            self.1 as u64,
+            (self.1 >> 64) as u64,
+            self.0 as u64,
+            (self.0 >> 64) as u64,
+        ];
 
         for word in &mut split_le {
             // This will not overflow, for proof see https://github.com/rust-bitcoin/rust-bitcoin/pull/1496#issuecomment-1365938572
@@ -897,12 +875,20 @@ impl U256 {
         // If self is 0, exponent should be 0 (special meaning) and mantissa will end up 0 too
         // Otherwise, (255 - n) + 1022 so it simplifies to 1277 - n
         // 1023 and 1022 are the cutoffs for the exponent having the msb next to the decimal point
-        let exponent = if self == Self::ZERO { 0 } else { 1277 - leading_zeroes as u64 };
+        let exponent = if self == Self::ZERO {
+            0
+        } else {
+            1277 - leading_zeroes as u64
+        };
         // Step 7: sign bit is always 0, exponent is shifted into place
         // Use addition instead of bitwise OR to saturate the exponent if mantissa overflows
         f64::from_bits((exponent << 52) + mantissa)
     }
 }
+
+// Target::MAX as a float value. Calculated with U256::to_f64.
+// This is validated in the unit tests as well.
+const TARGET_MAX_F64: f64 = 2.695953529101131e67;
 
 impl<T: Into<u128>> From<T> for U256 {
     fn from(x: T) -> Self {
@@ -914,7 +900,7 @@ impl Add for U256 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
         let (res, overflow) = self.overflowing_add(rhs);
-        debug_assert!(!overflow, "addition of U256 values overflowed");
+        debug_assert!(!overflow, "Addition of U256 values overflowed");
         res
     }
 }
@@ -923,7 +909,7 @@ impl Sub for U256 {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
         let (res, overflow) = self.overflowing_sub(rhs);
-        debug_assert!(!overflow, "subtraction of U256 values overflowed");
+        debug_assert!(!overflow, "Subtraction of U256 values overflowed");
         res
     }
 }
@@ -932,7 +918,7 @@ impl Mul for U256 {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self {
         let (res, overflow) = self.overflowing_mul(rhs);
-        debug_assert!(!overflow, "multiplication of U256 values overflowed");
+        debug_assert!(!overflow, "Multiplication of U256 values overflowed");
         res
     }
 }
@@ -990,7 +976,7 @@ impl fmt::Debug for U256 {
 }
 
 macro_rules! impl_hex {
-    ($hex:path, $case:expr) => {
+    ($hex:ident, $case:expr) => {
         impl $hex for U256 {
             fn fmt(&self, f: &mut fmt::Formatter) -> core::fmt::Result {
                 hex::fmt_hex_exact!(f, 32, &self.to_be_bytes(), $case)
@@ -998,8 +984,8 @@ macro_rules! impl_hex {
         }
     };
 }
-impl_hex!(fmt::LowerHex, hex::Case::Lower);
-impl_hex!(fmt::UpperHex, hex::Case::Upper);
+impl_hex!(LowerHex, hex::Case::Lower);
+impl_hex!(UpperHex, hex::Case::Upper);
 
 #[cfg(feature = "serde")]
 impl crate::serde::Serialize for U256 {
@@ -1085,7 +1071,9 @@ impl<'de> crate::serde::Deserialize<'de> for U256 {
                 where
                     E: serde::de::Error,
                 {
-                    let b = v.try_into().map_err(|_| de::Error::invalid_length(v.len(), &self))?;
+                    let b = v
+                        .try_into()
+                        .map_err(|_| de::Error::invalid_length(v.len(), &self))?;
                     Ok(U256::from_be_bytes(b))
                 }
             }

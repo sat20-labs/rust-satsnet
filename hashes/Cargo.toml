@@ -12,9 +12,8 @@ rust-version = "1.63.0"
 
 [features]
 default = ["std"]
-std = ["alloc", "hex/std", "satsnet-io?/std"]
+std = ["alloc", "hex/std", "satsnet-io/std"]
 alloc = ["hex/alloc"]
-schemars = ["dep:schemars", "alloc"]
 # If you want I/O you must enable either "std" or "io".
 io = ["satsnet-io"]
 # Smaller (but slower) implementation of sha256, sha512 and ripemd160
@@ -22,6 +21,7 @@ small-hash = []
 
 [dependencies]
 hex = { package = "hex-conservative", version = "0.2.0", default-features = false }
+
 satsnet-io = { version = "0.1.1", default-features = false, optional = true }
 schemars = { version = "0.8.3", default-features = false, optional = true }
 serde = { version = "1.0", default-features = false, optional = true }

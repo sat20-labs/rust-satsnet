@@ -6,58 +6,67 @@
 //! which commits to an earlier block to form the blockchain. This
 //! module describes structures and functions needed to describe
 //! these blocks and the blockchain.
+//!
 
 use core::fmt;
 
-use hashes::{sha256d, HashEngine};
+use hashes::{sha256d, Hash, HashEngine};
 use io::{BufRead, Write};
 
 use super::Weight;
-use crate::consensus::{encode, Decodable, Encodable};
+use crate::blockdata::script;
+use crate::blockdata::transaction::{Transaction, Txid, Wtxid};
+use crate::consensus::{encode, Decodable, Encodable, Params};
 use crate::internal_macros::{impl_consensus_encoding, impl_hashencode};
-use crate::merkle_tree::{MerkleNode as _, TxMerkleNode, WitnessMerkleNode};
-use crate::network::Params;
 use crate::pow::{CompactTarget, Target, Work};
-use crate::prelude::Vec;
-use crate::script::{self, ScriptExt as _};
-use crate::transaction::{Transaction, Wtxid};
-use crate::VarInt;
+use crate::prelude::*;
+use crate::{merkle_tree, VarInt};
 
 hashes::hash_newtype! {
     /// A bitcoin block hash.
     pub struct BlockHash(sha256d::Hash);
+    /// A hash of the Merkle tree branch or root for transactions.
+    pub struct TxMerkleNode(sha256d::Hash);
+    /// A hash corresponding to the Merkle tree root for witness data.
+    pub struct WitnessMerkleNode(sha256d::Hash);
     /// A hash corresponding to the witness structure commitment in the coinbase transaction.
     pub struct WitnessCommitment(sha256d::Hash);
 }
 impl_hashencode!(BlockHash);
-impl BlockHash {
-    /// The "all zeros" blockhash.
-    ///
-    /// This is not the hash of a real block. It is used as the previous blockhash
-    /// of the genesis block and in other placeholder contexts.
-    pub fn all_zeros() -> Self {
-        Self::from_byte_array([0; 32])
+impl_hashencode!(TxMerkleNode);
+impl_hashencode!(WitnessMerkleNode);
+
+impl From<Txid> for TxMerkleNode {
+    fn from(txid: Txid) -> Self {
+        Self::from_byte_array(txid.to_byte_array())
+    }
+}
+
+impl From<Wtxid> for WitnessMerkleNode {
+    fn from(wtxid: Wtxid) -> Self {
+        Self::from_byte_array(wtxid.to_byte_array())
     }
 }
 
 /// Bitcoin block header.
 ///
 /// Contains all the block's information except the actual transactions, but
-/// including a root of a [Merkle tree] committing to all transactions in the block.
+/// including a root of a [merkle tree] committing to all transactions in the block.
 ///
-/// [Merkle tree]: https://en.wikipedia.org/wiki/Merkle_tree
+/// [merkle tree]: https://en.wikipedia.org/wiki/Merkle_tree
 ///
 /// ### Bitcoin Core References
 ///
 /// * [CBlockHeader definition](https://github.com/bitcoin/bitcoin/blob/345457b542b6a980ccfbc868af0970a6f91d1b82/src/primitives/block.h#L20)
 #[derive(Copy, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Header {
     /// Block version, now repurposed for soft fork signalling.
     pub version: Version,
     /// Reference to the previous block in the chain.
     pub prev_blockhash: BlockHash,
-    /// The root hash of the Merkle tree of transactions in the block.
+    /// The root hash of the merkle tree of transactions in the block.
     pub merkle_root: TxMerkleNode,
     /// The timestamp of the block, as claimed by the miner.
     pub time: u32,
@@ -67,7 +76,15 @@ pub struct Header {
     pub nonce: u32,
 }
 
-impl_consensus_encoding!(Header, version, prev_blockhash, merkle_root, time, bits, nonce);
+impl_consensus_encoding!(
+    Header,
+    version,
+    prev_blockhash,
+    merkle_root,
+    time,
+    bits,
+    nonce
+);
 
 impl Header {
     /// The number of bytes that the block header contributes to the size of a block.
@@ -76,9 +93,10 @@ impl Header {
 
     /// Returns the block hash.
     pub fn block_hash(&self) -> BlockHash {
-        let mut engine = sha256d::Hash::engine();
-        self.consensus_encode(&mut engine).expect("engines don't error");
-        BlockHash(sha256d::Hash::from_engine(engine))
+        let mut engine = BlockHash::engine();
+        self.consensus_encode(&mut engine)
+            .expect("engines don't error");
+        BlockHash::from_engine(engine)
     }
 
     /// Computes the target (range [0, T] inclusive) that a blockhash must land in to be valid.
@@ -95,8 +113,8 @@ impl Header {
     }
 
     /// Computes the popular "difficulty" measure for mining and returns a float value of f64.
-    pub fn difficulty_float(&self, params: impl AsRef<Params>) -> f64 {
-        self.target().difficulty_float(params)
+    pub fn difficulty_float(&self) -> f64 {
+        self.target().difficulty_float()
     }
 
     /// Checks that the proof-of-work for the block is valid, returning the block hash.
@@ -148,6 +166,7 @@ impl fmt::Debug for Header {
 /// * [BIP34 - Block v2, Height in Coinbase](https://github.com/bitcoin/bips/blob/master/bip-0034.mediawiki)
 #[derive(Copy, PartialEq, Eq, Clone, Debug, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Version(i32);
 
 impl Version {
@@ -234,6 +253,7 @@ impl Decodable for Version {
 /// * [CBlock definition](https://github.com/bitcoin/bitcoin/blob/345457b542b6a980ccfbc868af0970a6f91d1b82/src/primitives/block.h#L62)
 #[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Block {
     /// The block header
     pub header: Header,
@@ -249,7 +269,7 @@ impl Block {
         self.header.block_hash()
     }
 
-    /// Checks if Merkle root of header matches Merkle root of the transaction list.
+    /// Checks if merkle root of header matches merkle root of the transaction list.
     pub fn check_merkle_root(&self) -> bool {
         match self.compute_merkle_root() {
             Some(merkle_root) => self.header.merkle_root == merkle_root,
@@ -261,7 +281,11 @@ impl Block {
     pub fn check_witness_commitment(&self) -> bool {
         const MAGIC: [u8; 6] = [0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
         // Witness commitment is optional if there are no transactions using SegWit in the block.
-        if self.txdata.iter().all(|t| t.input.iter().all(|i| i.witness.is_empty())) {
+        if self
+            .txdata
+            .iter()
+            .all(|t| t.input.iter().all(|i| i.witness.is_empty()))
+        {
             return true;
         }
 
@@ -289,7 +313,7 @@ impl Block {
             if witness_vec.len() == 1 && witness_vec[0].len() == 32 {
                 if let Some(witness_root) = self.witness_root() {
                     return commitment
-                        == Self::compute_witness_commitment(witness_root, witness_vec[0]);
+                        == Self::compute_witness_commitment(&witness_root, witness_vec[0]);
                 }
             }
         }
@@ -297,34 +321,39 @@ impl Block {
         false
     }
 
-    /// Computes the transaction Merkle root.
+    /// Computes the transaction merkle root.
     pub fn compute_merkle_root(&self) -> Option<TxMerkleNode> {
-        let hashes = self.txdata.iter().map(|obj| obj.compute_txid());
-        TxMerkleNode::calculate_root(hashes)
+        let hashes = self
+            .txdata
+            .iter()
+            .map(|obj| obj.compute_txid().to_raw_hash());
+        merkle_tree::calculate_root(hashes).map(|h| h.into())
     }
 
     /// Computes the witness commitment for the block's transaction list.
     pub fn compute_witness_commitment(
-        witness_root: WitnessMerkleNode,
+        witness_root: &WitnessMerkleNode,
         witness_reserved_value: &[u8],
     ) -> WitnessCommitment {
-        let mut encoder = sha256d::Hash::engine();
-        witness_root.consensus_encode(&mut encoder).expect("engines don't error");
+        let mut encoder = WitnessCommitment::engine();
+        witness_root
+            .consensus_encode(&mut encoder)
+            .expect("engines don't error");
         encoder.input(witness_reserved_value);
-        WitnessCommitment(sha256d::Hash::from_engine(encoder))
+        WitnessCommitment::from_engine(encoder)
     }
 
-    /// Computes the Merkle root of transactions hashed for witness.
+    /// Computes the merkle root of transactions hashed for witness.
     pub fn witness_root(&self) -> Option<WitnessMerkleNode> {
         let hashes = self.txdata.iter().enumerate().map(|(i, t)| {
             if i == 0 {
                 // Replace the first hash with zeroes.
-                Wtxid::all_zeros()
+                Wtxid::all_zeros().to_raw_hash()
             } else {
-                t.compute_wtxid()
+                t.compute_wtxid().to_raw_hash()
             }
         });
-        WitnessMerkleNode::calculate_root(hashes)
+        merkle_tree::calculate_root(hashes).map(|h| h.into())
     }
 
     /// Returns the weight of the block.
@@ -384,12 +413,15 @@ impl Block {
 
         let cb = self.coinbase().ok_or(Bip34Error::NotPresent)?;
         let input = cb.input.first().ok_or(Bip34Error::NotPresent)?;
-        let push = input.script_sig.instructions_minimal().next().ok_or(Bip34Error::NotPresent)?;
+        let push = input
+            .script_sig
+            .instructions_minimal()
+            .next()
+            .ok_or(Bip34Error::NotPresent)?;
         match push.map_err(|_| Bip34Error::NotPresent)? {
             script::Instruction::PushBytes(b) => {
                 // Check that the number is encoded in the minimal way.
-                let h = b
-                    .read_scriptint()
+                let h = script::read_scriptint(b.as_bytes())
                     .map_err(|_e| Bip34Error::UnexpectedPush(b.as_bytes().to_vec()))?;
                 if h < 0 {
                     Err(Bip34Error::NegativeHeight)

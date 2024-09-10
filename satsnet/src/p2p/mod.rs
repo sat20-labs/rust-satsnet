@@ -24,12 +24,13 @@ use core::str::FromStr;
 use core::{fmt, ops};
 
 use hex::FromHex;
-use internals::{debug_from_display, impl_to_hex_from_lower_hex, write_err};
+use internals::{debug_from_display, write_err};
 use io::{BufRead, Write};
 
 use crate::consensus::encode::{self, Decodable, Encodable};
-use crate::network::{Network, Params};
-use crate::prelude::{Borrow, BorrowMut, String, ToOwned};
+use crate::consensus::Params;
+use crate::prelude::*;
+use crate::Network;
 
 #[rustfmt::skip]
 #[doc(inline)]
@@ -109,7 +110,7 @@ impl ServiceFlags {
     ///
     /// Returns itself.
     pub fn remove(&mut self, other: ServiceFlags) -> ServiceFlags {
-        self.0 &= !other.0;
+        self.0 ^= other.0;
         *self
     }
 
@@ -129,8 +130,6 @@ impl fmt::LowerHex for ServiceFlags {
         fmt::LowerHex::fmt(&self.0, f)
     }
 }
-impl_to_hex_from_lower_hex!(ServiceFlags, |service_flags: &ServiceFlags| 16
-    - service_flags.0.leading_zeros() as usize / 4);
 
 impl fmt::UpperHex for ServiceFlags {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -244,7 +243,7 @@ impl Magic {
     pub const REGTEST: Self = Self([0xFA, 0xBF, 0xB5, 0xDA]);
 
     /// Create network magic from bytes.
-    pub const fn from_bytes(bytes: [u8; 4]) -> Magic {
+    pub fn from_bytes(bytes: [u8; 4]) -> Magic {
         Magic(bytes)
     }
 
@@ -265,43 +264,39 @@ impl FromStr for Magic {
     fn from_str(s: &str) -> Result<Magic, Self::Err> {
         match <[u8; 4]>::from_hex(s) {
             Ok(magic) => Ok(Magic::from_bytes(magic)),
-            Err(e) => Err(ParseMagicError { error: e, magic: s.to_owned() }),
+            Err(e) => Err(ParseMagicError {
+                error: e,
+                magic: s.to_owned(),
+            }),
         }
     }
 }
 
-macro_rules! generate_network_magic_conversion {
-    ($(Network::$network:ident => Magic::$magic:ident,)*) => {
-        impl From<Network> for Magic {
-            fn from(network: Network) -> Magic {
-                match network {
-                    $(
-                        Network::$network => Magic::$magic,
-                    )*
-                }
-            }
+impl From<Network> for Magic {
+    fn from(network: Network) -> Magic {
+        match network {
+            // Note: new network entries must explicitly be matched in `try_from` below.
+            Network::Bitcoin => Magic::BITCOIN,
+            Network::Testnet => Magic::TESTNET,
+            Network::Signet => Magic::SIGNET,
+            Network::Regtest => Magic::REGTEST,
         }
-
-        impl TryFrom<Magic> for Network {
-            type Error = UnknownMagicError;
-
-            fn try_from(magic: Magic) -> Result<Self, Self::Error> {
-                match magic {
-                    $(
-                        Magic::$magic => Ok(Network::$network),
-                    )*
-                    _ => Err(UnknownMagicError(magic)),
-                }
-            }
-        }
-    };
+    }
 }
 
-generate_network_magic_conversion! {
-    Network::Bitcoin => Magic::BITCOIN,
-    Network::Testnet => Magic::TESTNET,
-    Network::Signet => Magic::SIGNET,
-    Network::Regtest => Magic::REGTEST,
+impl TryFrom<Magic> for Network {
+    type Error = UnknownMagicError;
+
+    fn try_from(magic: Magic) -> Result<Self, Self::Error> {
+        match magic {
+            // Note: any new network entries must be matched against here.
+            Magic::BITCOIN => Ok(Network::Bitcoin),
+            Magic::TESTNET => Ok(Network::Testnet),
+            Magic::SIGNET => Ok(Network::Signet),
+            Magic::REGTEST => Ok(Network::Regtest),
+            _ => Err(UnknownMagicError(magic)),
+        }
+    }
 }
 
 impl fmt::Display for Magic {
@@ -318,7 +313,6 @@ impl fmt::LowerHex for Magic {
         Ok(())
     }
 }
-impl_to_hex_from_lower_hex!(Magic, |_| 8);
 
 impl fmt::UpperHex for Magic {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {

@@ -4,6 +4,7 @@
 //!
 //! There are two types of lock time: lock-by-blockheight and lock-by-blocktime, distinguished by
 //! whether bit 22 of the `u32` consensus value is set.
+//!
 
 #[cfg(feature = "ordered")]
 use core::cmp::Ordering;
@@ -13,11 +14,11 @@ use crate::Sequence;
 
 #[rustfmt::skip]                // Keep public re-exports separate.
 #[doc(inline)]
-pub use units::locktime::relative::*;
+pub use units::locktime::relative::{Height, Time, TimeOverflowError};
 
 /// A relative lock time value, representing either a block height or time (512 second intervals).
 ///
-/// Used for sequence numbers (`nSequence` in Bitcoin Core and `TxIn::sequence`
+/// Used for sequence numbers (`nSequence` in Bitcoin Core and [`crate::TxIn::sequence`]
 /// in this library) and also for the argument to opcode 'OP_CHECKSEQUENCEVERIFY`.
 ///
 /// ### Note on ordering
@@ -32,6 +33,7 @@ pub use units::locktime::relative::*;
 /// * [BIP 112 CHECKSEQUENCEVERIFY](https://github.com/bitcoin/bips/blob/master/bip-0112.mediawiki)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub enum LockTime {
     /// A block height lock time value.
     Blocks(Height),
@@ -56,7 +58,7 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use bitcoin_primitives::relative::LockTime;
+    /// # use bitcoin::relative::LockTime;
     ///
     /// // `from_consensus` roundtrips with `to_consensus_u32` for small values.
     /// let n_lock_time: u32 = 7000;
@@ -65,7 +67,9 @@ impl LockTime {
     /// ```
     pub fn from_consensus(n: u32) -> Result<Self, DisabledLockTimeError> {
         let sequence = crate::Sequence::from_consensus(n);
-        sequence.to_relative_lock_time().ok_or(DisabledLockTimeError(n))
+        sequence
+            .to_relative_lock_time()
+            .ok_or(DisabledLockTimeError(n))
     }
 
     /// Returns the `u32` value used to encode this locktime in an nSequence field or
@@ -167,16 +171,17 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use bitcoin_primitives::Sequence;
-    /// # use bitcoin_primitives::locktime::relative::{LockTime, Height, Time};
+    /// # use bitcoin::Sequence;
+    /// # use bitcoin::locktime::relative::{LockTime, Height, Time};
     ///
-    /// # let required_height = 100;       // 100 blocks.
+    /// # let height = 100;       // 100 blocks.
     /// # let intervals = 70;     // Approx 10 hours.
-    /// # let current_height = || Height::from(required_height + 10);
+    /// # let current_height = || Height::from(height + 10);
     /// # let current_time = || Time::from_512_second_intervals(intervals + 10);
-    /// # let lock = Sequence::from_height(required_height).to_relative_lock_time().expect("valid height");
+    /// # let lock = Sequence::from_height(height).to_relative_lock_time().expect("valid height");
     ///
     /// // Users that have chain data can get the current height and time to check against a lock.
+    /// let height_and_time = (current_time(), current_height());  // tuple order does not matter.
     /// assert!(lock.is_satisfied_by(current_height(), current_time()));
     /// ```
     #[inline]
@@ -206,12 +211,12 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use bitcoin_primitives::Sequence;
-    /// # use bitcoin_primitives::locktime::relative::{LockTime, Height, Time};
+    /// # use bitcoin::Sequence;
+    /// # use bitcoin::locktime::relative::{LockTime, Height, Time};
     ///
-    /// # let required_height = 100;       // 100 blocks.
-    /// # let lock = Sequence::from_height(required_height).to_relative_lock_time().expect("valid height");
-    /// # let test_sequence = Sequence::from_height(required_height + 10);
+    /// # let height = 100;       // 100 blocks.
+    /// # let lock = Sequence::from_height(height).to_relative_lock_time().expect("valid height");
+    /// # let test_sequence = Sequence::from_height(height + 10);
     ///
     /// let satisfied = match test_sequence.to_relative_lock_time() {
     ///     None => false, // Handle non-lock-time case.
@@ -254,12 +259,12 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use bitcoin_primitives::Sequence;
-    /// # use bitcoin_primitives::locktime::relative::{LockTime, Height, Time};
+    /// # use bitcoin::Sequence;
+    /// # use bitcoin::locktime::relative::{LockTime, Height, Time};
     ///
-    /// let required_height: u16 = 100;
-    /// let lock = Sequence::from_height(required_height).to_relative_lock_time().expect("valid height");
-    /// assert!(lock.is_satisfied_by_height(Height::from(required_height + 1)).expect("a height"));
+    /// let height: u16 = 100;
+    /// let lock = Sequence::from_height(height).to_relative_lock_time().expect("valid height");
+    /// assert!(lock.is_satisfied_by_height(Height::from(height+1)).expect("a height"));
     /// ```
     #[inline]
     #[cfg_attr(all(test, mutate), mutate)]
@@ -267,7 +272,7 @@ impl LockTime {
         use LockTime::*;
 
         match *self {
-            Blocks(ref required_height) => Ok(required_height.value() <= height.value()),
+            Blocks(ref h) => Ok(h.value() <= height.value()),
             Time(time) => Err(IncompatibleHeightError { height, time }),
         }
     }
@@ -281,8 +286,8 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use bitcoin_primitives::Sequence;
-    /// # use bitcoin_primitives::locktime::relative::{LockTime, Height, Time};
+    /// # use bitcoin::Sequence;
+    /// # use bitcoin::locktime::relative::{LockTime, Height, Time};
     ///
     /// let intervals: u16 = 70; // approx 10 hours;
     /// let lock = Sequence::from_512_second_intervals(intervals).to_relative_lock_time().expect("valid time");

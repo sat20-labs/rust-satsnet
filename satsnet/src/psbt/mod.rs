@@ -5,6 +5,7 @@
 //! Implementation of BIP174 Partially Signed Bitcoin Transaction Format as
 //! defined at <https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki>
 //! except we define PSBTs containing non-standard sighash types as invalid.
+//!
 
 #[macro_use]
 mod macros;
@@ -21,13 +22,12 @@ use internals::write_err;
 use secp256k1::{Keypair, Message, Secp256k1, Signing, Verification};
 
 use crate::bip32::{self, KeySource, Xpriv, Xpub};
+use crate::blockdata::transaction::{self, Transaction, TxOut};
 use crate::crypto::key::{PrivateKey, PublicKey};
 use crate::crypto::{ecdsa, taproot};
 use crate::key::{TapTweak, XOnlyPublicKey};
-use crate::prelude::{btree_map, BTreeMap, BTreeSet, Borrow, Box, Vec};
-use crate::script::ScriptExt as _;
+use crate::prelude::*;
 use crate::sighash::{self, EcdsaSighashType, Prevouts, SighashCache};
-use crate::transaction::{self, Transaction, TxOut};
 use crate::{Amount, FeeRate, TapLeafHash, TapSighashType};
 
 #[rustfmt::skip]                // Keep public re-exports separate.
@@ -40,6 +40,7 @@ pub use self::{
 /// A Partially Signed Transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Psbt {
     /// The unsigned transaction, scriptSigs and witnesses for each input must be empty.
     pub unsigned_tx: Transaction,
@@ -49,10 +50,16 @@ pub struct Psbt {
     /// derivation path as defined by BIP 32.
     pub xpub: BTreeMap<Xpub, KeySource>,
     /// Global proprietary key-value pairs.
-    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::btreemap_as_seq_byte_values"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::serde_utils::btreemap_as_seq_byte_values")
+    )]
     pub proprietary: BTreeMap<raw::ProprietaryKey, Vec<u8>>,
     /// Unknown global key-value pairs.
-    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::btreemap_as_seq_byte_values"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::serde_utils::btreemap_as_seq_byte_values")
+    )]
     pub unknown: BTreeMap<raw::Key, Vec<u8>>,
 
     /// The corresponding key-value map for each input in the unsigned transaction.
@@ -67,25 +74,32 @@ impl Psbt {
     /// For each PSBT input that contains UTXO information `Ok` is returned containing that information.
     /// The order of returned items is same as the order of inputs.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// The function returns error when UTXO information is not present or is invalid.
     ///
-    /// # Panics
+    /// ## Panics
     ///
     /// The function panics if the length of transaction inputs is not equal to the length of PSBT inputs.
     pub fn iter_funding_utxos(&self) -> impl Iterator<Item = Result<&TxOut, Error>> {
         assert_eq!(self.inputs.len(), self.unsigned_tx.input.len());
-        self.unsigned_tx.input.iter().zip(&self.inputs).map(|(tx_input, psbt_input)| {
-            match (&psbt_input.witness_utxo, &psbt_input.non_witness_utxo) {
-                (Some(witness_utxo), _) => Ok(witness_utxo),
-                (None, Some(non_witness_utxo)) => {
-                    let vout = tx_input.previous_output.vout as usize;
-                    non_witness_utxo.output.get(vout).ok_or(Error::PsbtUtxoOutOfbounds)
+        self.unsigned_tx
+            .input
+            .iter()
+            .zip(&self.inputs)
+            .map(|(tx_input, psbt_input)| {
+                match (&psbt_input.witness_utxo, &psbt_input.non_witness_utxo) {
+                    (Some(witness_utxo), _) => Ok(witness_utxo),
+                    (None, Some(non_witness_utxo)) => {
+                        let vout = tx_input.previous_output.vout as usize;
+                        non_witness_utxo
+                            .output
+                            .get(vout)
+                            .ok_or(Error::PsbtUtxoOutOfbounds)
+                    }
+                    (None, None) => Err(Error::MissingUtxo),
                 }
-                (None, None) => Err(Error::MissingUtxo),
-            }
-        })
+            })
     }
 
     /// Checks that unsigned transaction does not have scriptSig's or witness data.
@@ -140,7 +154,7 @@ impl Psbt {
 
     /// Extracts the [`Transaction`] from a [`Psbt`] by filling in the available signature information.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// [`ExtractTxError`] variants will contain either the [`Psbt`] itself or the [`Transaction`]
     /// that was extracted. These can be extracted from the Errors in order to recover.
@@ -151,7 +165,7 @@ impl Psbt {
 
     /// Extracts the [`Transaction`] from a [`Psbt`] by filling in the available signature information.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// See [`extract_tx`].
     ///
@@ -192,7 +206,9 @@ impl Psbt {
         let fee = match self.fee() {
             Ok(fee) => fee,
             Err(Error::MissingUtxo) => {
-                return Err(ExtractTxError::MissingInputValue { tx: self.internal_extract_tx() })
+                return Err(ExtractTxError::MissingInputValue {
+                    tx: self.internal_extract_tx(),
+                })
             }
             Err(Error::NegativeFee) => return Err(ExtractTxError::SendingTooMuch { psbt: self }),
             Err(Error::FeeOverflow) => {
@@ -453,7 +469,10 @@ impl Psbt {
                     #[cfg(not(feature = "rand-std"))]
                     let signature = secp.sign_schnorr_no_aux_rand(&msg, &key_pair);
 
-                    let signature = taproot::Signature { signature, sighash_type };
+                    let signature = taproot::Signature {
+                        signature,
+                        sighash_type,
+                    };
                     input.tap_key_sig = Some(signature);
 
                     used.push(internal_key);
@@ -480,7 +499,10 @@ impl Psbt {
                         #[cfg(not(feature = "rand-std"))]
                         let signature = secp.sign_schnorr_no_aux_rand(&msg, &key_pair);
 
-                        let signature = taproot::Signature { signature, sighash_type };
+                        let signature = taproot::Signature {
+                            signature,
+                            sighash_type,
+                        };
                         input.tap_script_sigs.insert((xonly, lh), signature);
                     }
 
@@ -514,7 +536,9 @@ impl Psbt {
         let utxo = self.spend_utxo(input_index)?;
         let spk = &utxo.script_pubkey; // scriptPubkey for input spend utxo.
 
-        let hash_ty = input.ecdsa_hash_ty().map_err(|_| SignError::InvalidSighashType)?; // Only support standard sighash types.
+        let hash_ty = input
+            .ecdsa_hash_ty()
+            .map_err(|_| SignError::InvalidSighashType)?; // Only support standard sighash types.
 
         match self.output_type(input_index)? {
             Bare => {
@@ -524,8 +548,10 @@ impl Psbt {
                 Ok((Message::from(sighash), hash_ty))
             }
             Sh => {
-                let script_code =
-                    input.redeem_script.as_ref().ok_or(SignError::MissingRedeemScript)?;
+                let script_code = input
+                    .redeem_script
+                    .as_ref()
+                    .ok_or(SignError::MissingRedeemScript)?;
                 let sighash = cache
                     .legacy_signature_hash(input_index, script_code, hash_ty.to_u32())
                     .expect("input checked above");
@@ -542,15 +568,17 @@ impl Psbt {
                 Ok((Message::from(sighash), hash_ty))
             }
             Wsh | ShWsh => {
-                let witness_script =
-                    input.witness_script.as_ref().ok_or(SignError::MissingWitnessScript)?;
+                let witness_script = input
+                    .witness_script
+                    .as_ref()
+                    .ok_or(SignError::MissingWitnessScript)?;
                 let sighash = cache
                     .p2wsh_signature_hash(input_index, witness_script, utxo.value, hash_ty)
                     .map_err(SignError::SegwitV0Sighash)?;
                 Ok((Message::from(sighash), hash_ty))
             }
             Tr => {
-                // This PSBT signing API is WIP, Taproot to come shortly.
+                // This PSBT signing API is WIP, taproot to come shortly.
                 Err(SignError::Unsupported)
             }
         }
@@ -582,8 +610,9 @@ impl Psbt {
                     .taproot_hash_ty()
                     .map_err(|_| SignError::InvalidSighashType)?;
 
-                let spend_utxos =
-                    (0..self.inputs.len()).map(|i| self.spend_utxo(i).ok()).collect::<Vec<_>>();
+                let spend_utxos = (0..self.inputs.len())
+                    .map(|i| self.spend_utxo(i).ok())
+                    .collect::<Vec<_>>();
                 let all_spend_utxos;
 
                 let is_anyone_can_pay = PsbtSighashType::from(hash_ty).to_u32() & 0x80 != 0;
@@ -685,10 +714,20 @@ impl Psbt {
         }
 
         if spk.is_p2sh() {
-            if input.redeem_script.as_ref().map(|s| s.is_p2wpkh()).unwrap_or(false) {
+            if input
+                .redeem_script
+                .as_ref()
+                .map(|s| s.is_p2wpkh())
+                .unwrap_or(false)
+            {
                 return Ok(OutputType::ShWpkh);
             }
-            if input.redeem_script.as_ref().map(|x| x.is_p2wsh()).unwrap_or(false) {
+            if input
+                .redeem_script
+                .as_ref()
+                .map(|x| x.is_p2wsh())
+                .unwrap_or(false)
+            {
                 return Ok(OutputType::ShWsh);
             }
             return Ok(OutputType::Sh);
@@ -708,7 +747,7 @@ impl Psbt {
     /// 'Fee' being the amount that will be paid for mining a transaction with the current inputs
     /// and outputs i.e., the difference in value of the total inputs and the total outputs.
     ///
-    /// # Errors
+    /// ## Errors
     ///
     /// - [`Error::MissingUtxo`] when UTXO information for any input is not present or is invalid.
     /// - [`Error::NegativeFee`] if calculated value is negative.
@@ -716,13 +755,20 @@ impl Psbt {
     pub fn fee(&self) -> Result<Amount, Error> {
         let mut inputs: u64 = 0;
         for utxo in self.iter_funding_utxos() {
-            inputs = inputs.checked_add(utxo?.value.to_sat()).ok_or(Error::FeeOverflow)?;
+            inputs = inputs
+                .checked_add(utxo?.value.to_sat())
+                .ok_or(Error::FeeOverflow)?;
         }
         let mut outputs: u64 = 0;
         for out in &self.unsigned_tx.output {
-            outputs = outputs.checked_add(out.value.to_sat()).ok_or(Error::FeeOverflow)?;
+            outputs = outputs
+                .checked_add(out.value.to_sat())
+                .ok_or(Error::FeeOverflow)?;
         }
-        inputs.checked_sub(outputs).map(Amount::from_sat).ok_or(Error::NegativeFee)
+        inputs
+            .checked_sub(outputs)
+            .map(Amount::from_sat)
+            .ok_or(Error::NegativeFee)
     }
 }
 
@@ -744,7 +790,6 @@ pub trait GetKey {
     /// Attempts to get the private key for `key_request`.
     ///
     /// # Returns
-    ///
     /// - `Some(key)` if the key is found.
     /// - `None` if the key was not found but no error was encountered.
     /// - `Err` if an error was encountered while looking for the key.
@@ -767,7 +812,7 @@ impl GetKey for Xpriv {
             KeyRequest::Pubkey(_) => Err(GetKeyError::NotSupported),
             KeyRequest::Bip32((fingerprint, path)) => {
                 let key = if self.fingerprint(secp) == fingerprint {
-                    let k = self.derive_priv(secp, &path);
+                    let k = self.derive_priv(secp, &path)?;
                     Some(k.to_priv())
                 } else {
                     None
@@ -813,7 +858,7 @@ impl GetKey for $set<Xpriv> {
             KeyRequest::Bip32((fingerprint, path)) => {
                 for xpriv in self.iter() {
                     if xpriv.parent_fingerprint == fingerprint {
-                        let k = xpriv.derive_priv(secp, &path);
+                        let k = xpriv.derive_priv(secp, &path)?;
                         return Ok(Some(k.to_priv()));
                     }
                 }
@@ -907,7 +952,7 @@ pub enum OutputType {
     ShWsh,
     /// A pay-to-script-hash output excluding wrapped segwit (P2SH).
     Sh,
-    /// A Taproot output (P2TR).
+    /// A taproot output (P2TR).
     Tr,
 }
 
@@ -962,7 +1007,7 @@ pub enum SignError {
     SegwitV0Sighash(transaction::InputsIndexError),
     /// Sighash computation error (p2wpkh input).
     P2wpkhSighash(sighash::P2wpkhError),
-    /// Sighash computation error (Taproot input).
+    /// Sighash computation error (taproot input).
     TaprootError(sighash::TaprootError),
     /// Unable to determine the output type.
     UnknownOutputType,
@@ -992,12 +1037,13 @@ impl fmt::Display for SignError {
             NotWpkh => write!(f, "the scriptPubkey is not a P2WPKH script"),
             SegwitV0Sighash(ref e) => write_err!(f, "segwit v0 sighash"; e),
             P2wpkhSighash(ref e) => write_err!(f, "p2wpkh sighash"; e),
-            TaprootError(ref e) => write_err!(f, "Taproot sighash"; e),
+            TaprootError(ref e) => write_err!(f, "taproot sighash"; e),
             UnknownOutputType => write!(f, "unable to determine the output type"),
             KeyNotFound => write!(f, "unable to find key"),
-            WrongSigningAlgorithm => {
-                write!(f, "attempt to sign an input with the wrong signing algorithm")
-            }
+            WrongSigningAlgorithm => write!(
+                f,
+                "attempt to sign an input with the wrong signing algorithm"
+            ),
             Unsupported => write!(f, "signing request currently unsupported"),
         }
     }
@@ -1078,15 +1124,15 @@ impl fmt::Display for ExtractTxError {
 
         match *self {
             AbsurdFeeRate { fee_rate, .. } => {
-                write!(f, "an absurdly high fee rate of {}", fee_rate)
+                write!(f, "An absurdly high fee rate of {}", fee_rate)
             }
             MissingInputValue { .. } => write!(
                 f,
-                "one of the inputs lacked value information (witness_utxo or non_witness_utxo)"
+                "One of the inputs lacked value information (witness_utxo or non_witness_utxo)"
             ),
             SendingTooMuch { .. } => write!(
                 f,
-                "transaction would be invalid due to output value being greater than input value."
+                "Transaction would be invalid due to output value being greater than input value."
             ),
         }
     }
@@ -1130,12 +1176,18 @@ impl fmt::Display for IndexOutOfBoundsError {
         use IndexOutOfBoundsError::*;
 
         match *self {
-            Inputs { ref index, ref length } => write!(
+            Inputs {
+                ref index,
+                ref length,
+            } => write!(
                 f,
                 "index {} is out-of-bounds for PSBT inputs vector length {}",
                 index, length
             ),
-            TxInput { ref index, ref length } => write!(
+            TxInput {
+                ref index,
+                ref length,
+            } => write!(
                 f,
                 "index {} is out-of-bounds for PSBT unsigned tx input vector length {}",
                 index, length
@@ -1157,7 +1209,7 @@ impl std::error::Error for IndexOutOfBoundsError {
 
 #[cfg(feature = "base64")]
 mod display_from_str {
-    use core::fmt;
+    use core::fmt::{self, Display, Formatter};
     use core::str::FromStr;
 
     use base64::display::Base64Display;
@@ -1178,8 +1230,8 @@ mod display_from_str {
 
     internals::impl_from_infallible!(PsbtParseError);
 
-    impl fmt::Display for PsbtParseError {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    impl Display for PsbtParseError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
             use self::PsbtParseError::*;
 
             match *self {
@@ -1201,9 +1253,13 @@ mod display_from_str {
         }
     }
 
-    impl fmt::Display for Psbt {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", Base64Display::new(&self.serialize(), &BASE64_STANDARD))
+    impl Display for Psbt {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            write!(
+                f,
+                "{}",
+                Base64Display::new(&self.serialize(), &BASE64_STANDARD)
+            )
         }
     }
 
@@ -1211,7 +1267,9 @@ mod display_from_str {
         type Err = PsbtParseError;
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
-            let data = BASE64_STANDARD.decode(s).map_err(PsbtParseError::Base64Encoding)?;
+            let data = BASE64_STANDARD
+                .decode(s)
+                .map_err(PsbtParseError::Base64Encoding)?;
             Psbt::deserialize(&data).map_err(PsbtParseError::PsbtEncoding)
         }
     }

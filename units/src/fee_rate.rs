@@ -5,8 +5,6 @@
 use core::fmt;
 use core::ops::{Div, Mul};
 
-#[cfg(feature = "arbitrary")]
-use arbitrary::{Arbitrary, Unstructured};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -44,16 +42,16 @@ impl FeeRate {
     /// Fee rate used to compute dust amount.
     pub const DUST: FeeRate = FeeRate::from_sat_per_vb_unchecked(3);
 
-    /// Constructs [`FeeRate`] from satoshis per 1000 weight units.
+    /// Constructs `FeeRate` from satoshis per 1000 weight units.
     pub const fn from_sat_per_kwu(sat_kwu: u64) -> Self {
         FeeRate(sat_kwu)
     }
 
-    /// Constructs [`FeeRate`] from satoshis per virtual bytes.
+    /// Constructs `FeeRate` from satoshis per virtual bytes.
     ///
     /// # Errors
     ///
-    /// Returns [`None`] on arithmetic overflow.
+    /// Returns `None` on arithmetic overflow.
     pub fn from_sat_per_vb(sat_vb: u64) -> Option<Self> {
         // 1 vb == 4 wu
         // 1 sat/vb == 1/4 sat/wu
@@ -61,7 +59,7 @@ impl FeeRate {
         Some(FeeRate(sat_vb.checked_mul(1000 / 4)?))
     }
 
-    /// Constructs [`FeeRate`] from satoshis per virtual bytes without overflow check.
+    /// Constructs `FeeRate` from satoshis per virtual bytes without overflow check.
     pub const fn from_sat_per_vb_unchecked(sat_vb: u64) -> Self {
         FeeRate(sat_vb * (1000 / 4))
     }
@@ -85,14 +83,14 @@ impl FeeRate {
 
     /// Checked multiplication.
     ///
-    /// Computes `self * rhs` returning [`None`] if overflow occurred.
+    /// Computes `self * rhs` returning `None` if overflow occurred.
     pub fn checked_mul(self, rhs: u64) -> Option<Self> {
         self.0.checked_mul(rhs).map(Self)
     }
 
     /// Checked division.
     ///
-    /// Computes `self / rhs` returning [`None`] if `rhs == 0`.
+    /// Computes `self / rhs` returning `None` if `rhs == 0`.
     pub fn checked_div(self, rhs: u64) -> Option<Self> {
         self.0.checked_div(rhs).map(Self)
     }
@@ -101,35 +99,27 @@ impl FeeRate {
     ///
     /// Computes the absolute fee amount for a given [`Weight`] at this fee rate.
     ///
-    /// [`None`] is returned if an overflow occurred.
+    /// `None` is returned if an overflow occurred.
     pub fn checked_mul_by_weight(self, rhs: Weight) -> Option<Amount> {
         let sats = self.0.checked_mul(rhs.to_wu())?.checked_add(999)? / 1000;
         Some(Amount::from_sat(sats))
     }
 
-    /// Calculates the fee by multiplying this fee rate by weight, in weight units, returning [`None`]
-    /// if an overflow occurred.
+    /// Calculates fee by multiplying this fee rate by weight, in weight units, returning `None`
+    /// if overflow occurred.
     ///
     /// This is equivalent to `Self::checked_mul_by_weight()`.
     pub fn fee_wu(self, weight: Weight) -> Option<Amount> {
         self.checked_mul_by_weight(weight)
     }
 
-    /// Calculates the fee by multiplying this fee rate by weight, in virtual bytes, returning [`None`]
-    /// if an overflow occurred.
+    /// Calculates fee by multiplying this fee rate by weight, in virtual bytes, returning `None`
+    /// if overflow occurred.
     ///
-    /// This is equivalent to converting `vb` to [`Weight`] using [`Weight::from_vb`] and then calling
+    /// This is equivalent to converting `vb` to `weight` using `Weight::from_vb` and then calling
     /// `Self::fee_wu(weight)`.
     pub fn fee_vb(self, vb: u64) -> Option<Amount> {
         Weight::from_vb(vb).and_then(|w| self.fee_wu(w))
-    }
-}
-
-#[cfg(feature = "arbitrary")]
-impl<'a> Arbitrary<'a> for FeeRate {
-    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        let f = u64::arbitrary(u)?;
-        Ok(FeeRate(f))
     }
 }
 
@@ -150,7 +140,7 @@ impl From<FeeRate> for u64 {
     }
 }
 
-/// Computes the ceiling so that the fee computation is conservative.
+/// Computes ceiling so that fee computation is conservative.
 impl Mul<FeeRate> for Weight {
     type Output = Amount;
 

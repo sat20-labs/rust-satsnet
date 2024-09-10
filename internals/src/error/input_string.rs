@@ -23,8 +23,8 @@ impl InputString {
     ///
     /// ```
     /// use core::fmt;
-    /// use bitcoin_internals::error::InputString;
-    /// use bitcoin_internals::write_err;
+    /// use satsnet_internals::error::InputString;
+    /// use satsnet_internals::write_err;
     ///
     /// /// An example parsing error including the parse error from core.
     /// #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,7 +55,7 @@ impl InputString {
     ///
     /// ```
     /// use core::fmt;
-    /// use bitcoin_internals::error::InputString;
+    /// use satsnet_internals::error::InputString;
     ///
     /// /// An example parsing error.
     /// #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,7 +122,9 @@ mod storage {
     }
 
     impl From<&str> for Storage {
-        fn from(_value: &str) -> Self { Storage }
+        fn from(_value: &str) -> Self {
+            Storage
+        }
     }
 
     pub(super) fn cannot_parse<W>(_: &Storage, what: &W, f: &mut fmt::Formatter) -> fmt::Result
@@ -162,5 +164,9 @@ mod storage {
         write!(f, "'{}' is not a known {}", inp, what)
     }
 
-    impl_from!(alloc::string::String, alloc::boxed::Box<str>, alloc::borrow::Cow<'_, str>);
+    impl_from!(
+        alloc::string::String,
+        alloc::boxed::Box<str>,
+        alloc::borrow::Cow<'_, str>
+    );
 }

@@ -4,6 +4,7 @@
 //!
 //! This module defines network messages which describe peers and their
 //! capabilities.
+//!
 
 use hashes::sha256d;
 use io::{BufRead, Write};
@@ -13,7 +14,7 @@ use crate::internal_macros::impl_consensus_encoding;
 use crate::p2p;
 use crate::p2p::address::Address;
 use crate::p2p::ServiceFlags;
-use crate::prelude::{Cow, String};
+use crate::prelude::*;
 
 /// Some simple messages
 

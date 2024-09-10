@@ -57,23 +57,20 @@ pub mod witness_program;
 pub mod witness_version;
 
 use alloc::rc::Rc;
-#[cfg(target_has_atomic = "ptr")]
+#[cfg(any(not(rust_v_1_60), target_has_atomic = "ptr"))]
 use alloc::sync::Arc;
 use core::cmp::Ordering;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 
 use hashes::{hash160, sha256};
-use internals::impl_to_hex_from_lower_hex;
 use io::{BufRead, Write};
 
+use crate::blockdata::opcodes::all::*;
+use crate::blockdata::opcodes::{self, Opcode};
 use crate::consensus::{encode, Decodable, Encodable};
-use crate::constants::{MAX_REDEEM_SCRIPT_SIZE, MAX_WITNESS_SCRIPT_SIZE};
 use crate::internal_macros::impl_asref_push_bytes;
-use crate::key::WPubkeyHash;
-use crate::opcodes::all::*;
-use crate::opcodes::{self, Opcode};
-use crate::prelude::{Borrow, BorrowMut, Box, Cow, DisplayHex, ToOwned, Vec};
+use crate::prelude::*;
 use crate::OutPoint;
 
 #[rustfmt::skip]                // Keep public re-exports separate.
@@ -94,125 +91,40 @@ hashes::hash_newtype! {
 }
 impl_asref_push_bytes!(ScriptHash, WScriptHash);
 
-impl ScriptHash {
-    /// Creates a `ScriptHash` after first checking the script size.
-    ///
-    /// # 520-byte limitation on serialized script size
-    ///
-    /// > As a consequence of the requirement for backwards compatibility the serialized script is
-    /// > itself subject to the same rules as any other PUSHDATA operation, including the rule that
-    /// > no data greater than 520 bytes may be pushed to the stack. Thus it is not possible to
-    /// > spend a P2SH output if the redemption script it refers to is >520 bytes in length.
-    ///
-    /// ref: [BIP-16](https://github.com/bitcoin/bips/blob/master/bip-0016.mediawiki#user-content-520byte_limitation_on_serialized_script_size)
-    pub fn from_script(redeem_script: &Script) -> Result<Self, RedeemScriptSizeError> {
-        if redeem_script.len() > MAX_REDEEM_SCRIPT_SIZE {
-            return Err(RedeemScriptSizeError { size: redeem_script.len() });
-        }
-
-        Ok(ScriptHash(hash160::Hash::hash(redeem_script.as_bytes())))
-    }
-
-    /// Creates a `ScriptHash` from any script irrespective of script size.
-    ///
-    /// If you hash a script that exceeds 520 bytes in size and use it to create a P2SH output
-    /// then the output will be unspendable (see [BIP-16]).
-    ///
-    /// [BIP-16]: <https://github.com/bitcoin/bips/blob/master/bip-0016.mediawiki#user-content-520byte_limitation_on_serialized_script_size>
-    pub fn from_script_unchecked(script: &Script) -> Self {
-        ScriptHash(hash160::Hash::hash(script.as_bytes()))
+impl From<ScriptBuf> for ScriptHash {
+    fn from(script: ScriptBuf) -> ScriptHash {
+        script.script_hash()
     }
 }
 
-impl WScriptHash {
-    /// Creates a `WScriptHash` after first checking the script size.
-    ///
-    /// # 10,000-byte limit on the witness script
-    ///
-    /// > The witnessScript (≤ 10,000 bytes) is popped off the initial witness stack. SHA256 of the
-    /// > witnessScript must match the 32-byte witness program.
-    ///
-    /// ref: [BIP-141](https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki)
-    pub fn from_script(witness_script: &Script) -> Result<Self, WitnessScriptSizeError> {
-        if witness_script.len() > MAX_WITNESS_SCRIPT_SIZE {
-            return Err(WitnessScriptSizeError { size: witness_script.len() });
-        }
-
-        Ok(WScriptHash(sha256::Hash::hash(witness_script.as_bytes())))
-    }
-
-    /// Creates a `WScriptHash` from any script irrespective of script size.
-    ///
-    /// If you hash a script that exceeds 10,000 bytes in size and use it to create a Segwit
-    /// output then the output will be unspendable (see [BIP-141]).
-    ///
-    /// ref: [BIP-141](https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki)
-    pub fn from_script_unchecked(script: &Script) -> Self {
-        WScriptHash(sha256::Hash::hash(script.as_bytes()))
+impl From<&ScriptBuf> for ScriptHash {
+    fn from(script: &ScriptBuf) -> ScriptHash {
+        script.script_hash()
     }
 }
 
-impl TryFrom<ScriptBuf> for ScriptHash {
-    type Error = RedeemScriptSizeError;
-
-    fn try_from(redeem_script: ScriptBuf) -> Result<Self, Self::Error> {
-        Self::from_script(&redeem_script)
+impl From<&Script> for ScriptHash {
+    fn from(script: &Script) -> ScriptHash {
+        script.script_hash()
     }
 }
 
-impl TryFrom<&ScriptBuf> for ScriptHash {
-    type Error = RedeemScriptSizeError;
-
-    fn try_from(redeem_script: &ScriptBuf) -> Result<Self, Self::Error> {
-        Self::from_script(redeem_script)
+impl From<ScriptBuf> for WScriptHash {
+    fn from(script: ScriptBuf) -> WScriptHash {
+        script.wscript_hash()
     }
 }
 
-impl TryFrom<&Script> for ScriptHash {
-    type Error = RedeemScriptSizeError;
-
-    fn try_from(redeem_script: &Script) -> Result<Self, Self::Error> {
-        Self::from_script(redeem_script)
+impl From<&ScriptBuf> for WScriptHash {
+    fn from(script: &ScriptBuf) -> WScriptHash {
+        script.wscript_hash()
     }
 }
 
-impl TryFrom<ScriptBuf> for WScriptHash {
-    type Error = WitnessScriptSizeError;
-
-    fn try_from(witness_script: ScriptBuf) -> Result<Self, Self::Error> {
-        Self::from_script(&witness_script)
+impl From<&Script> for WScriptHash {
+    fn from(script: &Script) -> WScriptHash {
+        script.wscript_hash()
     }
-}
-
-impl TryFrom<&ScriptBuf> for WScriptHash {
-    type Error = WitnessScriptSizeError;
-
-    fn try_from(witness_script: &ScriptBuf) -> Result<Self, Self::Error> {
-        Self::from_script(witness_script)
-    }
-}
-
-impl TryFrom<&Script> for WScriptHash {
-    type Error = WitnessScriptSizeError;
-
-    fn try_from(witness_script: &Script) -> Result<Self, Self::Error> {
-        Self::from_script(witness_script)
-    }
-}
-
-/// Creates the script code used for spending a P2WPKH output.
-///
-/// The `scriptCode` is described in [BIP143].
-///
-/// [BIP143]: <https://github.com/bitcoin/bips/blob/99701f68a88ce33b2d0838eb84e115cef505b4c2/bip-0143.mediawiki>
-pub fn p2wpkh_script_code(wpkh: WPubkeyHash) -> ScriptBuf {
-    Builder::new()
-        .push_opcode(OP_DUP)
-        .push_opcode(OP_HASH160)
-        .push_slice(wpkh)
-        .push_opcode(OP_EQUALVERIFY)
-        .push_opcode(OP_CHECKSIG)
-        .into_script()
 }
 
 /// Encodes an integer in script(minimal CScriptNum) format.
@@ -254,11 +166,54 @@ pub fn write_scriptint(out: &mut [u8; 8], n: i64) -> usize {
     len
 }
 
+/// Decodes an integer in script(minimal CScriptNum) format.
+///
+/// Notice that this fails on overflow: the result is the same as in
+/// bitcoind, that only 4-byte signed-magnitude values may be read as
+/// numbers. They can be added or subtracted (and a long time ago,
+/// multiplied and divided), and this may result in numbers which
+/// can't be written out in 4 bytes or less. This is ok! The number
+/// just can't be read as a number again.
+/// This is a bit crazy and subtle, but it makes sense: you can load
+/// 32-bit numbers and do anything with them, which back when mult/div
+/// was allowed, could result in up to a 64-bit number. We don't want
+/// overflow since that's surprising --- and we don't want numbers that
+/// don't fit in 64 bits (for efficiency on modern processors) so we
+/// simply say, anything in excess of 32 bits is no longer a number.
+/// This is basically a ranged type implementation.
+///
+/// This code is based on the `CScriptNum` constructor in Bitcoin Core (see `script.h`).
+pub fn read_scriptint(v: &[u8]) -> Result<i64, Error> {
+    let last = match v.last() {
+        Some(last) => last,
+        None => return Ok(0),
+    };
+    if v.len() > 4 {
+        return Err(Error::NumericOverflow);
+    }
+    // Comment and code copied from Bitcoin Core:
+    // https://github.com/bitcoin/bitcoin/blob/447f50e4aed9a8b1d80e1891cda85801aeb80b4e/src/script/script.h#L247-L262
+    // If the most-significant-byte - excluding the sign bit - is zero
+    // then we're not minimal. Note how this test also rejects the
+    // negative-zero encoding, 0x80.
+    if (*last & 0x7f) == 0 {
+        // One exception: if there's more than one byte and the most
+        // significant bit of the second-most-significant-byte is set
+        // it would conflict with the sign bit. An example of this case
+        // is +-255, which encode to 0xff00 and 0xff80 respectively.
+        // (big-endian).
+        if v.len() <= 1 || (v[v.len() - 2] & 0x80) == 0 {
+            return Err(Error::NonMinimalPush);
+        }
+    }
+
+    Ok(scriptint_parse(v))
+}
+
 /// Decodes an integer in script format without non-minimal error.
 ///
 /// The overflow error for slices over 4 bytes long is still there.
-///
-/// See [`push_bytes::PushBytes::read_scriptint`] for a description of some subtleties of
+/// See [`read_scriptint`] for a description of some subtleties of
 /// this function.
 pub fn read_scriptint_non_minimal(v: &[u8]) -> Result<i64, Error> {
     if v.is_empty() {
@@ -273,7 +228,9 @@ pub fn read_scriptint_non_minimal(v: &[u8]) -> Result<i64, Error> {
 
 // Caller to guarantee that `v` is not empty.
 fn scriptint_parse(v: &[u8]) -> i64 {
-    let (mut ret, sh) = v.iter().fold((0, 0), |(acc, sh), n| (acc + ((*n as i64) << sh), sh + 8));
+    let (mut ret, sh) = v
+        .iter()
+        .fold((0, 0), |(acc, sh), n| (acc + ((*n as i64) << sh), sh + 8));
     if v[v.len() - 1] & 0x80 != 0 {
         ret &= (1 << (sh - 1)) - 1;
         ret = -ret;
@@ -376,7 +333,7 @@ impl<'a> From<&'a Script> for Cow<'a, Script> {
 }
 
 /// Note: This will fail to compile on old Rust for targets that don't support atomics
-#[cfg(target_has_atomic = "ptr")]
+#[cfg(any(not(rust_v_1_60), target_has_atomic = "ptr"))]
 impl<'a> From<&'a Script> for Arc<Script> {
     fn from(value: &'a Script) -> Self {
         let rw: *const [u8] = Arc::into_raw(Arc::from(&value.0));
@@ -495,7 +452,6 @@ impl fmt::LowerHex for Script {
         fmt::LowerHex::fmt(&self.as_bytes().as_hex(), f)
     }
 }
-impl_to_hex_from_lower_hex!(Script, |script: &Script| script.len() * 2);
 
 impl fmt::LowerHex for ScriptBuf {
     #[inline]
@@ -503,7 +459,6 @@ impl fmt::LowerHex for ScriptBuf {
         fmt::LowerHex::fmt(self.as_script(), f)
     }
 }
-impl_to_hex_from_lower_hex!(ScriptBuf, |script_buf: &ScriptBuf| script_buf.len() * 2);
 
 impl fmt::UpperHex for Script {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -704,7 +659,9 @@ impl Decodable for ScriptBuf {
     fn consensus_decode_from_finite_reader<R: BufRead + ?Sized>(
         r: &mut R,
     ) -> Result<Self, encode::Error> {
-        Ok(ScriptBuf(Decodable::consensus_decode_from_finite_reader(r)?))
+        Ok(ScriptBuf(Decodable::consensus_decode_from_finite_reader(
+            r,
+        )?))
     }
 }
 
@@ -861,39 +818,3 @@ impl From<UintError> for Error {
         }
     }
 }
-
-/// Error while hashing a redeem script.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RedeemScriptSizeError {
-    /// Invalid redeem script size (cannot exceed 520 bytes).
-    pub size: usize,
-}
-
-internals::impl_from_infallible!(RedeemScriptSizeError);
-
-impl fmt::Display for RedeemScriptSizeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "redeem script size exceeds {} bytes: {}", MAX_REDEEM_SCRIPT_SIZE, self.size)
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for RedeemScriptSizeError {}
-
-/// Error while hashing a witness script.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WitnessScriptSizeError {
-    /// Invalid witness script size (cannot exceed 10,000 bytes).
-    pub size: usize,
-}
-
-internals::impl_from_infallible!(WitnessScriptSizeError);
-
-impl fmt::Display for WitnessScriptSizeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "witness script size exceeds {} bytes: {}", MAX_WITNESS_SCRIPT_SIZE, self.size)
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for WitnessScriptSizeError {}

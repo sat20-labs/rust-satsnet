@@ -4,30 +4,34 @@
 //!
 //! There are two types of lock time: lock-by-blockheight and lock-by-blocktime, distinguished by
 //! whether `LockTime < LOCKTIME_THRESHOLD`.
+//!
 
 use core::cmp::Ordering;
 use core::fmt;
 
-use units::parse::{self, PrefixedHexError, UnprefixedHexError};
+use io::{BufRead, Write};
+use units::parse;
 
-#[cfg(doc)]
-use crate::absolute;
+use crate::consensus::encode::{self, Decodable, Encodable};
+use crate::error::{ContainsPrefixError, MissingPrefixError, PrefixedHexError, UnprefixedHexError};
 
 #[rustfmt::skip]                // Keep public re-exports separate.
 #[doc(inline)]
-pub use units::locktime::absolute::*;
+pub use units::locktime::absolute::{
+    Height, Time, LOCK_TIME_THRESHOLD, ConversionError, ParseHeightError, ParseTimeError,
+};
 
 /// An absolute lock time value, representing either a block height or a UNIX timestamp (seconds
 /// since epoch).
 ///
-/// Used for transaction lock time (`nLockTime` in Bitcoin Core and `Transaction::lock_time`
+/// Used for transaction lock time (`nLockTime` in Bitcoin Core and [`crate::Transaction::lock_time`]
 /// in this library) and also for the argument to opcode 'OP_CHECKLOCKTIMEVERIFY`.
 ///
 /// ### Note on ordering
 ///
 /// Locktimes may be height- or time-based, and these metrics are incommensurate; there is no total
 /// ordering on locktimes. We therefore have implemented [`PartialOrd`] but not [`Ord`].
-/// For `Transaction`, which has a locktime field, we implement a total ordering to make
+/// For [`crate::Transaction`], which has a locktime field, we implement a total ordering to make
 /// it easy to store transactions in sorted data structures, and use the locktime's 32-bit integer
 /// consensus encoding to order it. We also implement [`ordered::ArbitraryOrd`] if the "ordered"
 /// feature is enabled.
@@ -38,9 +42,8 @@ pub use units::locktime::absolute::*;
 /// * [BIP-113 Median time-past as endpoint for lock-time calculations](https://github.com/bitcoin/bips/blob/master/bip-0113.mediawiki)
 ///
 /// # Examples
-///
 /// ```
-/// # use bitcoin_primitives::absolute::{LockTime, LockTime::*};
+/// # use bitcoin::absolute::{LockTime, LockTime::*};
 /// # let n = LockTime::from_consensus(741521);          // n OP_CHECKLOCKTIMEVERIFY
 /// # let lock_time = LockTime::from_consensus(741521);  // nLockTime
 /// // To compare absolute lock times there are various `is_satisfied_*` methods, you may also use:
@@ -55,9 +58,8 @@ pub enum LockTime {
     /// A block height lock time value.
     ///
     /// # Examples
-    ///
     /// ```rust
-    /// use bitcoin_primitives::absolute::LockTime;
+    /// use bitcoin::absolute::LockTime;
     ///
     /// let block: u32 = 741521;
     /// let n = LockTime::from_height(block).expect("valid height");
@@ -68,9 +70,8 @@ pub enum LockTime {
     /// A UNIX timestamp lock time value.
     ///
     /// # Examples
-    ///
     /// ```rust
-    /// use bitcoin_primitives::absolute::LockTime;
+    /// use bitcoin::absolute::LockTime;
     ///
     /// let seconds: u32 = 1653195600; // May 22nd, 5am UTC.
     /// let n = LockTime::from_time(seconds).expect("valid time");
@@ -81,22 +82,33 @@ pub enum LockTime {
 }
 
 impl LockTime {
-    /// If `Transaction::lock_time` is set to zero it is ignored, in other words a
+    /// If [`crate::Transaction::lock_time`] is set to zero it is ignored, in other words a
     /// transaction with nLocktime==0 is able to be included immediately in any block.
     pub const ZERO: LockTime = LockTime::Blocks(Height::ZERO);
 
     /// The number of bytes that the locktime contributes to the size of a transaction.
     pub const SIZE: usize = 4; // Serialized length of a u32.
 
-    /// Creates a `LockTime` from a prefixed hex string.
+    /// Creates a `LockTime` from an prefixed hex string.
     pub fn from_hex(s: &str) -> Result<Self, PrefixedHexError> {
-        let lock_time = parse::hex_u32_prefixed(s)?;
+        let stripped = if let Some(stripped) = s.strip_prefix("0x") {
+            stripped
+        } else if let Some(stripped) = s.strip_prefix("0X") {
+            stripped
+        } else {
+            return Err(MissingPrefixError::new(s).into());
+        };
+
+        let lock_time = parse::hex_u32(stripped)?;
         Ok(Self::from_consensus(lock_time))
     }
 
     /// Creates a `LockTime` from an unprefixed hex string.
     pub fn from_unprefixed_hex(s: &str) -> Result<Self, UnprefixedHexError> {
-        let lock_time = parse::hex_u32_unprefixed(s)?;
+        if s.starts_with("0x") || s.starts_with("0X") {
+            return Err(ContainsPrefixError::new(s).into());
+        }
+        let lock_time = parse::hex_u32(s)?;
         Ok(Self::from_consensus(lock_time))
     }
 
@@ -105,7 +117,7 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use bitcoin_primitives::absolute::LockTime;
+    /// # use bitcoin::absolute::LockTime;
     /// # let n = LockTime::from_consensus(741521); // n OP_CHECKLOCKTIMEVERIFY
     ///
     /// // `from_consensus` roundtrips as expected with `to_consensus_u32`.
@@ -123,18 +135,11 @@ impl LockTime {
 
     /// Constructs a `LockTime` from `n`, expecting `n` to be a valid block height.
     ///
-    /// # Note
-    ///
-    /// If the current block height is `h` and the locktime is set to `h`,
-    /// the transaction can be included in block `h+1` or later.
-    /// It is possible to broadcast the transaction at block height `h`.
-    ///
     /// See [`LOCK_TIME_THRESHOLD`] for definition of a valid height value.
     ///
     /// # Examples
-    ///
     /// ```rust
-    /// # use bitcoin_primitives::absolute::LockTime;
+    /// # use bitcoin::absolute::LockTime;
     /// assert!(LockTime::from_height(741521).is_ok());
     /// assert!(LockTime::from_height(1653195600).is_err());
     /// ```
@@ -146,21 +151,11 @@ impl LockTime {
 
     /// Constructs a `LockTime` from `n`, expecting `n` to be a valid block time.
     ///
-    /// # Note
-    ///
-    /// If the locktime is set to a timestamp `T`,
-    /// the transaction can be included in a block only if the median time past (MTP) of the
-    /// last 11 blocks is greater than `T`.
-    /// It is possible to broadcast the transaction once the MTP is greater than `T`.[see BIP-113]
-    ///
-    /// [BIP-113 Median time-past as endpoint for lock-time calculations](https://github.com/bitcoin/bips/blob/master/bip-0113.mediawiki)
-    ///
     /// See [`LOCK_TIME_THRESHOLD`] for definition of a valid time value.
     ///
     /// # Examples
-    ///
     /// ```rust
-    /// # use bitcoin_primitives::absolute::LockTime;
+    /// # use bitcoin::absolute::LockTime;
     /// assert!(LockTime::from_time(1653195600).is_ok());
     /// assert!(LockTime::from_time(741521).is_err());
     /// ```
@@ -198,13 +193,12 @@ impl LockTime {
     /// blocktime based lock it is checked against `time`.
     ///
     /// A 'timelock constraint' refers to the `n` from `n OP_CHEKCLOCKTIMEVERIFY`, this constraint
-    /// is satisfied if a transaction with nLockTime (`Transaction::lock_time`) set to
+    /// is satisfied if a transaction with nLockTime ([`crate::Transaction::lock_time`]) set to
     /// `height`/`time` is valid.
     ///
     /// # Examples
-    ///
     /// ```no_run
-    /// # use bitcoin_primitives::absolute::{LockTime, Height, Time};
+    /// # use bitcoin::absolute::{LockTime, Height, Time};
     /// // Can be implemented if block chain data is available.
     /// fn get_height() -> Height { todo!("return the current block height") }
     /// fn get_time() -> Time { todo!("return the current block time") }
@@ -239,7 +233,7 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use bitcoin_primitives::absolute::{LockTime, LockTime::*};
+    /// # use bitcoin::absolute::{LockTime, LockTime::*};
     /// let lock_time = LockTime::from_consensus(741521);
     /// let check = LockTime::from_consensus(741521 + 1);
     /// assert!(lock_time.is_implied_by(check));
@@ -268,7 +262,7 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use bitcoin_primitives::absolute::{LockTime, LockTime::*};
+    /// # use bitcoin::absolute::{LockTime, LockTime::*};
     /// # let n = LockTime::from_consensus(741521);              // n OP_CHECKLOCKTIMEVERIFY
     /// # let lock_time = LockTime::from_consensus(741521 + 1);  // nLockTime
     ///
@@ -348,6 +342,21 @@ impl fmt::Display for LockTime {
     }
 }
 
+impl Encodable for LockTime {
+    #[inline]
+    fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
+        let v = self.to_consensus_u32();
+        v.consensus_encode(w)
+    }
+}
+
+impl Decodable for LockTime {
+    #[inline]
+    fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
+        u32::consensus_decode(r).map(LockTime::from_consensus)
+    }
+}
+
 #[cfg(feature = "serde")]
 impl serde::Serialize for LockTime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -385,7 +394,9 @@ impl<'de> serde::Deserialize<'de> for LockTime {
                 })
             }
         }
-        deserializer.deserialize_u32(Visitor).map(LockTime::from_consensus)
+        deserializer
+            .deserialize_u32(Visitor)
+            .map(LockTime::from_consensus)
     }
 }
 

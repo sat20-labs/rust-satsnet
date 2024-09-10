@@ -10,10 +10,11 @@
 //! Bitcoin. As such they must not be relied upon as if they were consensus rules.
 //!
 //! These values were taken from bitcoind v0.21.1 (194b9b8792d9b0798fdb570b79fa51f1d1f5ebaf).
+//!
 
 use core::cmp;
 
-use super::constants::{MAX_BLOCK_SIGOPS_COST, WITNESS_SCALE_FACTOR};
+use super::blockdata::constants::{MAX_BLOCK_SIGOPS_COST, WITNESS_SCALE_FACTOR};
 
 /// Maximum weight of a transaction for it to be relayed by most nodes on the network
 pub const MAX_STANDARD_TX_WEIGHT: u32 = 400_000;

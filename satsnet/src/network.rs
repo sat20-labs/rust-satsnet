@@ -18,22 +18,18 @@
 //! assert_eq!(&bytes[..], &[0xF9, 0xBE, 0xB4, 0xD9]);
 //! ```
 
-pub mod params;
-
 use core::fmt;
+use core::fmt::Display;
 use core::str::FromStr;
 
 use internals::write_err;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use crate::consensus::Params;
 use crate::constants::ChainHash;
 use crate::p2p::Magic;
-use crate::prelude::{String, ToOwned};
-
-#[rustfmt::skip]                // Keep public re-exports separate.
-#[doc(inline)]
-pub use self::params::Params;
+use crate::prelude::*;
 
 /// What kind of network we are on.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -67,6 +63,7 @@ impl From<Network> for NetworkKind {
 /// The cryptocurrency network to act on.
 #[derive(Copy, PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 #[non_exhaustive]
 pub enum Network {
@@ -158,7 +155,7 @@ impl Network {
     ///
     /// ```rust
     /// use bitcoin::Network;
-    /// use bitcoin::constants::ChainHash;
+    /// use bitcoin::blockdata::constants::ChainHash;
     ///
     /// let network = Network::Bitcoin;
     /// assert_eq!(network.chain_hash(), ChainHash::BITCOIN);
@@ -173,7 +170,7 @@ impl Network {
     ///
     /// ```rust
     /// use bitcoin::Network;
-    /// use bitcoin::constants::ChainHash;
+    /// use bitcoin::blockdata::constants::ChainHash;
     ///
     /// assert_eq!(Ok(Network::Bitcoin), Network::try_from(ChainHash::BITCOIN));
     /// ```
@@ -292,7 +289,7 @@ impl fmt::Display for Network {
 #[non_exhaustive]
 pub struct UnknownChainHashError(ChainHash);
 
-impl fmt::Display for UnknownChainHashError {
+impl Display for UnknownChainHashError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "unknown chain hash: {}", self.0)
     }

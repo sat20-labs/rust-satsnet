@@ -14,6 +14,3 @@ rust-version = "1.63.0"
 default = ["std"]
 std = ["alloc"]
 alloc = []
-
-[dependencies]
-internals = { package = "satsnet-internals", version = "0.3.0" }

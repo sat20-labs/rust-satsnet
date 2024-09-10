@@ -9,8 +9,9 @@
 
 use core::ops::Index;
 use core::slice::SliceIndex;
+use core::str;
 
-use crate::sha512;
+use crate::{sha512, FromSliceError};
 
 crate::internal_macros::hash_type! {
     256,
@@ -33,20 +34,20 @@ fn from_engine(e: HashEngine) -> Hash {
 #[derive(Clone)]
 pub struct HashEngine(sha512::HashEngine);
 
-impl HashEngine {
-    /// Creates a new SHA512/256 hash engine.
-    pub const fn new() -> Self {
-        Self(sha512::HashEngine::sha512_256())
-    }
-}
-
 impl Default for HashEngine {
+    #[rustfmt::skip]
     fn default() -> Self {
-        Self::new()
+        HashEngine(sha512::HashEngine::sha512_256())
     }
 }
 
 impl crate::HashEngine for HashEngine {
+    type MidState = [u8; 64];
+
+    fn midstate(&self) -> [u8; 64] {
+        self.0.midstate()
+    }
+
     const BLOCK_SIZE: usize = sha512::BLOCK_SIZE;
 
     fn n_bytes_hashed(&self) -> usize {

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: CC0-1.0
 
-//! A witness.
+//! Witness
 //!
 //! This module contains the [`Witness`] struct and related methods to operate on it
+//!
 
 use core::fmt;
 use core::ops::Index;
@@ -12,9 +13,7 @@ use io::{BufRead, Write};
 use crate::consensus::encode::{Error, MAX_VEC_SIZE};
 use crate::consensus::{Decodable, Encodable, WriteExt};
 use crate::crypto::ecdsa;
-use crate::prelude::Vec;
-#[cfg(doc)]
-use crate::script::ScriptExt as _;
+use crate::prelude::*;
 use crate::taproot::{self, TAPROOT_ANNEX_PREFIX};
 use crate::{Script, VarInt};
 
@@ -30,14 +29,8 @@ use crate::{Script, VarInt};
 /// [segwit upgrade]: <https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki>
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Witness {
-    /// Contains the witness `Vec<Vec<u8>>` serialization.
-    ///
-    /// Does not include the initial varint indicating the number of elements. Each element however,
-    /// does include a varint indicating the element length. The number of elements is stored in
-    /// `witness_elements`.
-    ///
-    /// Concatenated onto the end of `content` is the index area. This is a `4 * witness_elements`
-    /// bytes area which stores the index of the start of each witness item.
+    /// Contains the witness `Vec<Vec<u8>>` serialization without the initial varint indicating the
+    /// number of elements (which is stored in `witness_elements`).
     content: Vec<u8>,
 
     /// The number of elements in the witness.
@@ -46,10 +39,8 @@ pub struct Witness {
     /// like [`Witness::push`] don't have to shift the entire array.
     witness_elements: usize,
 
-    /// This is the valid index pointing to the beginning of the index area.
-    ///
-    /// Said another way, this is the total length of all witness elements serialized (without the
-    /// element count but with their sizes serialized as compact size).
+    /// This is the valid index pointing to the beginning of the index area. This area is 4 *
+    /// stack_size bytes at the end of the content vector which stores the indices of each item.
     indices_start: usize,
 }
 
@@ -193,7 +184,11 @@ impl Decodable for Witness {
             content.truncate(cursor);
             // Index space is now at the end of the Vec
             content.rotate_left(witness_index_space);
-            Ok(Witness { content, witness_elements, indices_start: cursor - witness_index_space })
+            Ok(Witness {
+                content,
+                witness_elements,
+                indices_start: cursor - witness_index_space,
+            })
         }
     }
 }
@@ -203,8 +198,9 @@ impl Decodable for Witness {
 fn encode_cursor(bytes: &mut [u8], start_of_indices: usize, index: usize, value: usize) {
     let start = start_of_indices + index * 4;
     let end = start + 4;
-    bytes[start..end]
-        .copy_from_slice(&u32::to_ne_bytes(value.try_into().expect("larger than u32")));
+    bytes[start..end].copy_from_slice(&u32::to_ne_bytes(
+        value.try_into().expect("Larger than u32"),
+    ));
 }
 
 #[inline]
@@ -229,7 +225,6 @@ fn resize_if_needed(vec: &mut Vec<u8>, required_len: usize) {
 }
 
 impl Encodable for Witness {
-    // `self.content` includes the varints so encoding here includes them, as expected.
     fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
         let len = VarInt::from(self.witness_elements);
         len.consensus_encode(w)?;
@@ -245,7 +240,11 @@ impl Witness {
     /// Creates a new empty [`Witness`].
     #[inline]
     pub const fn new() -> Self {
-        Witness { content: Vec::new(), witness_elements: 0, indices_start: 0 }
+        Witness {
+            content: Vec::new(),
+            witness_elements: 0,
+            indices_start: 0,
+        }
     }
 
     /// Creates a witness required to spend a P2WPKH output.
@@ -254,7 +253,7 @@ impl Witness {
     /// serialized public key. Also useful for spending a P2SH-P2WPKH output.
     ///
     /// It is expected that `pubkey` is related to the secret key used to create `signature`.
-    pub fn p2wpkh(signature: ecdsa::Signature, pubkey: secp256k1::PublicKey) -> Witness {
+    pub fn p2wpkh(signature: &ecdsa::Signature, pubkey: &secp256k1::PublicKey) -> Witness {
         let mut witness = Witness::new();
         witness.push_slice(&signature.serialize());
         witness.push_slice(&pubkey.serialize());
@@ -290,18 +289,16 @@ impl Witness {
             cursor += elem.as_ref().len();
         }
 
-        Witness { witness_elements, content, indices_start: content_size }
+        Witness {
+            witness_elements,
+            content,
+            indices_start: content_size,
+        }
     }
 
     /// Convenience method to create an array of byte-arrays from this witness.
-    pub fn to_bytes(&self) -> Vec<Vec<u8>> {
-        self.iter().map(|s| s.to_vec()).collect()
-    }
-
-    /// Convenience method to create an array of byte-arrays from this witness.
-    #[deprecated(since = "TBD", note = "Use to_bytes instead")]
     pub fn to_vec(&self) -> Vec<Vec<u8>> {
-        self.to_bytes()
+        self.iter().map(|s| s.to_vec()).collect()
     }
 
     /// Returns `true` if the witness contains no element.
@@ -311,7 +308,11 @@ impl Witness {
 
     /// Returns a struct implementing [`Iterator`].
     pub fn iter(&self) -> Iter {
-        Iter { inner: self.content.as_slice(), indices_start: self.indices_start, current_index: 0 }
+        Iter {
+            inner: self.content.as_slice(),
+            indices_start: self.indices_start,
+            current_index: 0,
+        }
     }
 
     /// Returns the number of elements this witness holds.
@@ -353,7 +354,8 @@ impl Witness {
         let element_len_varint = VarInt::from(new_element.len());
         let current_content_len = self.content.len();
         let new_item_total_len = element_len_varint.size() + new_element.len();
-        self.content.resize(current_content_len + new_item_total_len + 4, 0);
+        self.content
+            .resize(current_content_len + new_item_total_len + 4, 0);
 
         self.content[previous_content_end..].rotate_right(new_item_total_len);
         self.indices_start += new_item_total_len;
@@ -374,7 +376,7 @@ impl Witness {
     /// Pushes, as a new element on the witness, an ECDSA signature.
     ///
     /// Pushes the DER encoded signature + sighash_type, requires an allocation.
-    pub fn push_ecdsa_signature(&mut self, signature: ecdsa::Signature) {
+    pub fn push_ecdsa_signature(&mut self, signature: &ecdsa::Signature) {
         self.push_slice(&signature.serialize())
     }
 
@@ -412,74 +414,28 @@ impl Witness {
     ///
     /// This does not guarantee that this represents a P2TR [`Witness`]. It
     /// merely gets the second to last or third to last element depending on
-    /// the first byte of the last element being equal to 0x50.
-    ///
-    /// See [`Script::is_p2tr`] to check whether this is actually a Taproot witness.
+    /// the first byte of the last element being equal to 0x50. See
+    /// [Script::is_p2tr](crate::blockdata::script::Script::is_p2tr) to
+    /// check whether this is actually a Taproot witness.
     pub fn tapscript(&self) -> Option<&Script> {
-        self.last().and_then(|last| {
-            // From BIP341:
-            // If there are at least two witness elements, and the first byte of
-            // the last element is 0x50, this last element is called annex a
-            // and is removed from the witness stack.
-            if self.len() >= 3 && last.first() == Some(&TAPROOT_ANNEX_PREFIX) {
-                self.nth(self.len() - 3).map(Script::from_bytes)
-            } else if self.len() >= 2 {
-                self.nth(self.len() - 2).map(Script::from_bytes)
-            } else {
-                None
-            }
-        })
-    }
-
-    /// Get the taproot control block following BIP341 rules.
-    ///
-    /// This does not guarantee that this represents a P2TR [`Witness`]. It
-    /// merely gets the last or second to last element depending on the first
-    /// byte of the last element being equal to 0x50.
-    ///
-    /// See [`Script::is_p2tr`] to check whether this is actually a Taproot witness.
-    pub fn taproot_control_block(&self) -> Option<&[u8]> {
-        self.last().and_then(|last| {
-            // From BIP341:
-            // If there are at least two witness elements, and the first byte of
-            // the last element is 0x50, this last element is called annex a
-            // and is removed from the witness stack.
-            if self.len() >= 3 && last.first() == Some(&TAPROOT_ANNEX_PREFIX) {
-                self.nth(self.len() - 2)
-            } else if self.len() >= 2 {
-                Some(last)
-            } else {
-                None
-            }
-        })
-    }
-
-    /// Get the taproot annex following BIP341 rules.
-    ///
-    /// This does not guarantee that this represents a P2TR [`Witness`].
-    ///
-    /// See [`Script::is_p2tr`] to check whether this is actually a Taproot witness.
-    pub fn taproot_annex(&self) -> Option<&[u8]> {
-        self.last().and_then(|last| {
-            // From BIP341:
-            // If there are at least two witness elements, and the first byte of
-            // the last element is 0x50, this last element is called annex a
-            // and is removed from the witness stack.
-            if self.len() >= 2 && last.first() == Some(&TAPROOT_ANNEX_PREFIX) {
-                Some(last)
-            } else {
-                None
-            }
-        })
-    }
-
-    /// Get the p2wsh witness script following BIP141 rules.
-    ///
-    /// This does not guarantee that this represents a P2WS [`Witness`].
-    ///
-    /// See [`Script::is_p2wsh`] to check whether this is actually a P2WSH witness.
-    pub fn witness_script(&self) -> Option<&Script> {
-        self.last().map(Script::from_bytes)
+        let len = self.len();
+        self.last()
+            .map(|last_elem| {
+                // From BIP341:
+                // If there are at least two witness elements, and the first byte of
+                // the last element is 0x50, this last element is called annex a
+                // and is removed from the witness stack.
+                if len >= 2 && last_elem.first() == Some(&TAPROOT_ANNEX_PREFIX) {
+                    // account for the extra item removed from the end
+                    3
+                } else {
+                    // otherwise script is 2nd from last
+                    2
+                }
+            })
+            .filter(|&script_pos_from_last| len >= script_pos_from_last)
+            .and_then(|script_pos_from_last| self.nth(len - script_pos_from_last))
+            .map(Script::from_bytes)
     }
 }
 
@@ -487,7 +443,7 @@ impl Index<usize> for Witness {
     type Output = [u8];
 
     fn index(&self, index: usize) -> &Self::Output {
-        self.nth(index).expect("out of bounds")
+        self.nth(index).expect("Out of Bounds")
     }
 }
 
@@ -534,7 +490,6 @@ impl serde::Serialize for Witness {
         let human_readable = serializer.is_human_readable();
         let mut seq = serializer.serialize_seq(Some(self.witness_elements))?;
 
-        // Note that the `Iter` strips the varints out when iterating.
         for elem in self.iter() {
             if human_readable {
                 seq.serialize_element(&crate::serde_utils::SerializeBytesAsHex(elem))?;
@@ -552,8 +507,6 @@ impl<'de> serde::Deserialize<'de> for Witness {
     where
         D: serde::Deserializer<'de>,
     {
-        use crate::prelude::String;
-
         struct Visitor; // Human-readable visitor.
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = Witness;

@@ -1,20 +1,16 @@
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
 use alloc::boxed::Box;
-use core::fmt;
+use core::fmt::{Debug, Display, Formatter};
 
 /// The `io` crate error type.
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
-    /// Indicates that the `struct` can pretend to own a mutable static reference
-    /// and an [`UnsafeCell`](core::cell::UnsafeCell), which are not unwind safe.
-    /// This is so that it does not introduce non-additive cargo features.
-    _not_unwind_safe: core::marker::PhantomData<(&'static mut (), core::cell::UnsafeCell<()>)>,
 
     #[cfg(feature = "std")]
     error: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     #[cfg(all(feature = "alloc", not(feature = "std")))]
-    error: Option<Box<dyn fmt::Debug + Send + Sync + 'static>>,
+    error: Option<Box<dyn Debug + Send + Sync + 'static>>,
 }
 
 impl Error {
@@ -24,13 +20,13 @@ impl Error {
     where
         E: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
     {
-        Self { kind, _not_unwind_safe: core::marker::PhantomData, error: Some(error.into()) }
+        Self { kind, error: Some(error.into()) }
     }
 
     /// Creates a new I/O error.
     #[cfg(all(feature = "alloc", not(feature = "std")))]
     pub fn new<E: sealed::IntoBoxDynDebug>(kind: ErrorKind, error: E) -> Error {
-        Self { kind, _not_unwind_safe: core::marker::PhantomData, error: Some(error.into()) }
+        Self { kind, error: Some(error.into()) }
     }
 
     /// Returns the error kind for this error.
@@ -44,24 +40,21 @@ impl Error {
 
     /// Returns a reference to this error.
     #[cfg(all(feature = "alloc", not(feature = "std")))]
-    pub fn get_ref(&self) -> Option<&(dyn fmt::Debug + Send + Sync + 'static)> {
-        self.error.as_deref()
-    }
+    pub fn get_ref(&self) -> Option<&(dyn Debug + Send + Sync + 'static)> { self.error.as_deref() }
 }
 
 impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Error {
         Self {
             kind,
-            _not_unwind_safe: core::marker::PhantomData,
             #[cfg(any(feature = "std", feature = "alloc"))]
             error: None,
         }
     }
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> core::result::Result<(), core::fmt::Error> {
+impl Display for Error {
+    fn fmt(&self, fmt: &mut Formatter) -> core::result::Result<(), core::fmt::Error> {
         fmt.write_fmt(format_args!("I/O Error: {}", self.kind.description()))?;
         #[cfg(any(feature = "alloc", feature = "std"))]
         if let Some(e) = &self.error {
@@ -94,11 +87,7 @@ impl std::error::Error for Error {
 #[cfg(feature = "std")]
 impl From<std::io::Error> for Error {
     fn from(o: std::io::Error) -> Error {
-        Self {
-            kind: ErrorKind::from_std(o.kind()),
-            _not_unwind_safe: core::marker::PhantomData,
-            error: o.into_inner(),
-        }
+        Self { kind: ErrorKind::from_std(o.kind()), error: o.into_inner() }
     }
 }
 
@@ -116,11 +105,10 @@ impl From<Error> for std::io::Error {
 macro_rules! define_errorkind {
     ($($(#[$($attr:tt)*])* $kind:ident),*) => {
         #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-        /// A minimal subset of [`std::io::ErrorKind`] which is used for [`Error`].
-        ///
-        /// Note that, as with [`std::io`], only [`Self::Interrupted`] has defined semantics in this
-        /// crate, all other variants are provided here only to provide higher-fidelity conversions
-        /// to and from [`std::io::Error`].
+        /// A minimal subset of [`std::io::ErrorKind`] which is used for [`Error`]. Note that, as with
+        /// [`std::io`], only [`Self::Interrupted`] has defined semantics in this crate, all other
+        /// variants are provided here only to provide higher-fidelity conversions to and from
+        /// [`std::io::Error`].
         pub enum ErrorKind {
             $(
                 $(#[$($attr)*])*
@@ -201,19 +189,17 @@ define_errorkind!(
 mod sealed {
     use alloc::boxed::Box;
     use alloc::string::String;
-    use core::fmt;
+    use core::fmt::Debug;
 
     pub trait IntoBoxDynDebug {
-        fn into(self) -> Box<dyn fmt::Debug + Send + Sync + 'static>;
+        fn into(self) -> Box<dyn Debug + Send + Sync + 'static>;
     }
 
     impl IntoBoxDynDebug for &str {
-        fn into(self) -> Box<dyn fmt::Debug + Send + Sync + 'static> {
-            Box::new(String::from(self))
-        }
+        fn into(self) -> Box<dyn Debug + Send + Sync + 'static> { Box::new(String::from(self)) }
     }
 
     impl IntoBoxDynDebug for String {
-        fn into(self) -> Box<dyn fmt::Debug + Send + Sync + 'static> { Box::new(self) }
+        fn into(self) -> Box<dyn Debug + Send + Sync + 'static> { Box::new(self) }
     }
 }

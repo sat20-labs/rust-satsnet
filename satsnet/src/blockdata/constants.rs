@@ -5,19 +5,23 @@
 //! This module provides various constants relating to the blockchain and
 //! consensus code. In particular, it defines the genesis block and its
 //! single transaction.
+//!
 
-use hashes::sha256d;
+use hashes::{sha256d, Hash};
+use hex_lit::hex;
 use internals::impl_array_newtype;
 
-use crate::block::{self, Block};
-use crate::internal_macros::impl_array_newtype_stringify;
-use crate::locktime::absolute;
-use crate::network::{Network, Params};
-use crate::opcodes::all::*;
+use crate::blockdata::block::{self, Block};
+use crate::blockdata::locktime::absolute;
+use crate::blockdata::opcodes::all::*;
+use crate::blockdata::script;
+use crate::blockdata::transaction::{self, OutPoint, Sequence, Transaction, TxIn, TxOut};
+use crate::blockdata::witness::Witness;
+use crate::consensus::Params;
+use crate::internal_macros::impl_bytes_newtype;
+use crate::network::Network;
 use crate::pow::CompactTarget;
-use crate::transaction::{self, OutPoint, Transaction, TxIn, TxOut};
-use crate::witness::Witness;
-use crate::{script, Amount, BlockHash, Sequence};
+use crate::Amount;
 
 /// How many seconds between blocks we expect on average.
 pub const TARGET_BLOCK_SPACING: u32 = 600;
@@ -38,39 +42,14 @@ pub const SCRIPT_ADDRESS_PREFIX_MAIN: u8 = 5; // 0x05
 pub const PUBKEY_ADDRESS_PREFIX_TEST: u8 = 111; // 0x6f
 /// Test (tesnet, signet, regtest) script address prefix.
 pub const SCRIPT_ADDRESS_PREFIX_TEST: u8 = 196; // 0xc4
-/// The maximum allowed redeem script size for a P2SH output.
-pub const MAX_REDEEM_SCRIPT_SIZE: usize = 520;
-/// The maximum allowed redeem script size of the witness script.
-pub const MAX_WITNESS_SCRIPT_SIZE: usize = 10_000;
-/// The maximum allowed size of any single witness stack element.
-pub const MAX_STACK_ELEMENT_SIZE: usize = 520;
+/// The maximum allowed script size.
+pub const MAX_SCRIPT_ELEMENT_SIZE: usize = 520;
 /// How may blocks between halvings.
 pub const SUBSIDY_HALVING_INTERVAL: u32 = 210_000;
 /// Maximum allowed value for an integer in Script.
-#[deprecated(
-    since = "TBD",
-    note = "This constant has ambiguous semantics. Please carefully check your intended use-case and define a new constant reflecting that."
-)]
 pub const MAX_SCRIPTNUM_VALUE: u32 = 0x80000000; // 2^31
 /// Number of blocks needed for an output from a coinbase transaction to be spendable.
 pub const COINBASE_MATURITY: u32 = 100;
-
-// This is the 65 byte (uncompressed) pubkey used as the one-and-only output of the genesis transaction.
-//
-// ref: https://blockstream.info/tx/4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b?expand
-// Note output script includes a leading 0x41 and trailing 0xac (added below using the `script::Builder`).
-#[rustfmt::skip]
-const GENESIS_OUTPUT_PK: [u8; 65] = [
-    0x04,
-    0x67, 0x8a, 0xfd, 0xb0, 0xfe, 0x55, 0x48, 0x27,
-    0x19, 0x67, 0xf1, 0xa6, 0x71, 0x30, 0xb7, 0x10,
-    0x5c, 0xd6, 0xa8, 0x28, 0xe0, 0x39, 0x09, 0xa6,
-    0x79, 0x62, 0xe0, 0xea, 0x1f, 0x61, 0xde, 0xb6,
-    0x49, 0xf6, 0xbc, 0x3f, 0x4c, 0xef, 0x38, 0xc4,
-    0xf3, 0x55, 0x04, 0xe5, 0x1e, 0xc1, 0x12, 0xde,
-    0x5c, 0x38, 0x4d, 0xf7, 0xba, 0x0b, 0x8d, 0x57,
-    0x8a, 0x4c, 0x70, 0x2b, 0x6b, 0xf1, 0x1d, 0x5f
-];
 
 /// Constructs and returns the coinbase (and only) transaction of the Bitcoin genesis block.
 fn bitcoin_genesis_tx() -> Transaction {
@@ -96,9 +75,15 @@ fn bitcoin_genesis_tx() -> Transaction {
     });
 
     // Outputs
-    let out_script =
-        script::Builder::new().push_slice(GENESIS_OUTPUT_PK).push_opcode(OP_CHECKSIG).into_script();
-    ret.output.push(TxOut { value: Amount::from_sat(50 * 100_000_000), script_pubkey: out_script });
+    let script_bytes = hex!("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f");
+    let out_script = script::Builder::new()
+        .push_slice(script_bytes)
+        .push_opcode(OP_CHECKSIG)
+        .into_script();
+    ret.output.push(TxOut {
+        value: Amount::from_sat(50 * 100_000_000),
+        script_pubkey: out_script,
+    });
 
     // end
     ret
@@ -113,7 +98,7 @@ pub fn genesis_block(params: impl AsRef<Params>) -> Block {
         Network::Bitcoin => Block {
             header: block::Header {
                 version: block::Version::ONE,
-                prev_blockhash: BlockHash::all_zeros(),
+                prev_blockhash: Hash::all_zeros(),
                 merkle_root,
                 time: 1231006505,
                 bits: CompactTarget::from_consensus(0x1d00ffff),
@@ -124,7 +109,7 @@ pub fn genesis_block(params: impl AsRef<Params>) -> Block {
         Network::Testnet => Block {
             header: block::Header {
                 version: block::Version::ONE,
-                prev_blockhash: BlockHash::all_zeros(),
+                prev_blockhash: Hash::all_zeros(),
                 merkle_root,
                 time: 1296688602,
                 bits: CompactTarget::from_consensus(0x1d00ffff),
@@ -135,7 +120,7 @@ pub fn genesis_block(params: impl AsRef<Params>) -> Block {
         Network::Signet => Block {
             header: block::Header {
                 version: block::Version::ONE,
-                prev_blockhash: BlockHash::all_zeros(),
+                prev_blockhash: Hash::all_zeros(),
                 merkle_root,
                 time: 1598918400,
                 bits: CompactTarget::from_consensus(0x1e0377ae),
@@ -146,7 +131,7 @@ pub fn genesis_block(params: impl AsRef<Params>) -> Block {
         Network::Regtest => Block {
             header: block::Header {
                 version: block::Version::ONE,
-                prev_blockhash: BlockHash::all_zeros(),
+                prev_blockhash: Hash::all_zeros(),
                 merkle_root,
                 time: 1296688602,
                 bits: CompactTarget::from_consensus(0x207fffff),
@@ -161,7 +146,7 @@ pub fn genesis_block(params: impl AsRef<Params>) -> Block {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainHash([u8; 32]);
 impl_array_newtype!(ChainHash, u8, 32);
-impl_array_newtype_stringify!(ChainHash, 32);
+impl_bytes_newtype!(ChainHash, 32);
 
 impl ChainHash {
     // Mainnet value can be verified at https://github.com/lightning/bolts/blob/master/00-introduction.md

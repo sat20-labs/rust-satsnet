@@ -12,25 +12,27 @@
 //! Hashing a single byte slice or a string:
 //!
 //! ```rust
-//! use satsnet_hashes::Sha256;
+//! use satsnet_hashes::sha256;
+//! use satsnet_hashes::Hash;
 //!
 //! let bytes = [0u8; 5];
-//! let hash_of_bytes = Sha256::hash(&bytes);
-//! let hash_of_string = Sha256::hash("some string".as_bytes());
+//! let hash_of_bytes = sha256::Hash::hash(&bytes);
+//! let hash_of_string = sha256::Hash::hash("some string".as_bytes());
 //! ```
 //!
 //!
 //! Hashing content from a reader:
 //!
 //! ```rust
-//! use satsnet_hashes::Sha256;
+//! use satsnet_hashes::sha256;
+//! use satsnet_hashes::Hash;
 //!
 //! #[cfg(std)]
 //! # fn main() -> std::io::Result<()> {
 //! let mut reader: &[u8] = b"hello"; // in real code, this could be a `File` or `TcpStream`
-//! let mut engine = Sha256::engine();
+//! let mut engine = sha256::HashEngine::default();
 //! std::io::copy(&mut reader, &mut engine)?;
-//! let hash = Sha256::from_engine(engine);
+//! let hash = sha256::Hash::from_engine(engine);
 //! # Ok(())
 //! # }
 //!
@@ -39,10 +41,11 @@
 //! ```
 //!
 //!
-//! Hashing content by [`std::io::Write`] on `HashEngine`:
+//! Hashing content by [`std::io::Write`] on HashEngine:
 //!
 //! ```rust
-//! use satsnet_hashes::Sha256;
+//! use satsnet_hashes::sha256;
+//! use satsnet_hashes::Hash;
 //! use std::io::Write;
 //!
 //! #[cfg(std)]
@@ -50,11 +53,11 @@
 //! let mut part1: &[u8] = b"hello";
 //! let mut part2: &[u8] = b" ";
 //! let mut part3: &[u8] = b"world";
-//! let mut engine = Sha256::engine();
+//! let mut engine = sha256::HashEngine::default();
 //! engine.write_all(part1)?;
 //! engine.write_all(part2)?;
 //! engine.write_all(part3)?;
-//! let hash = Sha256::from_engine(engine);
+//! let hash = sha256::Hash::from_engine(engine);
 //! # Ok(())
 //! # }
 //!
@@ -62,7 +65,7 @@
 //! # fn main() {}
 //! ```
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 // Experimental features we need.
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(bench, feature(test))]
@@ -75,13 +78,10 @@
 #![allow(clippy::manual_range_contains)] // More readable than clippy's format.
 #![allow(clippy::needless_borrows_for_generic_args)] // https://github.com/rust-lang/rust-clippy/issues/12454
 
-#[cfg(feature = "alloc")]
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 extern crate alloc;
-
+#[cfg(any(test, feature = "std"))]
 extern crate core;
-
-#[cfg(feature = "satsnet-io")]
-extern crate satsnet_io as io;
 
 #[cfg(feature = "serde")]
 /// A generic serialization/deserialization framework.
@@ -108,7 +108,6 @@ mod util;
 pub mod serde_macros;
 pub mod cmp;
 pub mod hash160;
-pub mod hkdf;
 pub mod hmac;
 #[cfg(feature = "satsnet-io")]
 mod impls;
@@ -122,60 +121,19 @@ pub mod sha512;
 pub mod sha512_256;
 pub mod siphash24;
 
-use core::{convert, fmt, hash};
+use core::{borrow, fmt, hash, ops};
 
-#[rustfmt::skip]                // Keep public re-exports separate.
-#[doc(inline)]
-pub use self::{
-    hkdf::Hkdf,
-    hmac::{Hmac, HmacEngine},
-};
-
-/// HASH-160: Alias for the [`hash160::Hash`] hash type.
-#[doc(inline)]
-pub use hash160::Hash as Hash160;
-/// RIPEMD-160: Alias for the [`ripemd160::Hash`] hash type.
-#[doc(inline)]
-pub use ripemd160::Hash as Ripemd160;
-/// SHA-1: Alias for the [`sha1::Hash`] hash type.
-#[doc(inline)]
-pub use sha1::Hash as Sha1;
-/// SHA-256: Alias for the [`sha256::Hash`] hash type.
-#[doc(inline)]
-pub use sha256::Hash as Sha256;
-/// Double SHA-256: Alias for the [`sha256d::Hash`] hash type.
-#[doc(inline)]
-pub use sha256d::Hash as Sha256d;
-/// SHA-384: Alias for the [`sha384::Hash`] hash type.
-#[doc(inline)]
-pub use sha384::Hash as Sha384;
-/// SHA-512: Alias for the [`sha512::Hash`] hash type.
-#[doc(inline)]
-pub use sha512::Hash as Sha512;
-/// SHA-512-256: Alias for the [`sha512_256::Hash`] hash type.
-#[doc(inline)]
-pub use sha512_256::Hash as Sha512_256;
-/// SipHash-2-4: Alias for the [`siphash24::Hash`] hash type.
-#[doc(inline)]
-pub use siphash24::Hash as Siphash24;
-
-/// Tagged SHA-256: Type alias for the [`sha256t::Hash`] hash type.
-pub type Sha256t<T> = sha256t::Hash<T>;
-
-/// HMAC-SHA-256: Type alias for the [`Hmac<Sha256>`] type.
-pub type HmacSha256 = Hmac<sha256::Hash>;
-
-/// HMAC-SHA-512: Type alias for the [`Hmac<Sha512>`] type.
-pub type HmacSha512 = Hmac<sha512::Hash>;
-
-/// HKDF-HMAC-SHA-256: Type alias for the [`Hkdf<Sha256>`] type.
-pub type HkdfSha256 = Hkdf<sha256::Hash>;
-
-/// HKDF-HMAC-SHA-512: Type alias for the [`Hkdf<Sha512>`] type.
-pub type HkdfSha512 = Hkdf<sha512::Hash>;
+pub use hmac::{Hmac, HmacEngine};
 
 /// A hashing engine which bytes can be serialized into.
-pub trait HashEngine: Clone {
+pub trait HashEngine: Clone + Default {
+    /// Byte array representing the internal state of the hash engine.
+    type MidState;
+
+    /// Outputs the midstate of the hash engine. This function should not be
+    /// used directly unless you really know what you're doing.
+    fn midstate(&self) -> Self::MidState;
+
     /// Length of the hash's internal block size, in bytes.
     const BLOCK_SIZE: usize;
 
@@ -184,74 +142,6 @@ pub trait HashEngine: Clone {
 
     /// Return the number of bytes already n_bytes_hashed(inputted).
     fn n_bytes_hashed(&self) -> usize;
-}
-
-/// Trait describing hash digests which can be constructed by hashing arbitrary data.
-///
-/// Some methods have been bound to engines which implement Default, which is
-/// generally an unkeyed hash function.
-pub trait GeneralHash: Hash {
-    /// A hashing engine which bytes can be serialized into. It is expected
-    /// to implement the `io::Write` trait, and to never return errors under
-    /// any conditions.
-    type Engine: HashEngine;
-
-    /// Constructs a new engine.
-    fn engine() -> Self::Engine
-    where
-        Self::Engine: Default,
-    {
-        Self::Engine::default()
-    }
-
-    /// Produces a hash from the current state of a given engine.
-    fn from_engine(e: Self::Engine) -> Self;
-
-    /// Hashes some bytes.
-    fn hash(data: &[u8]) -> Self
-    where
-        Self::Engine: Default,
-    {
-        let mut engine = Self::engine();
-        engine.input(data);
-        Self::from_engine(engine)
-    }
-
-    /// Hashes all the byte slices retrieved from the iterator together.
-    fn hash_byte_chunks<B, I>(byte_slices: I) -> Self
-    where
-        B: AsRef<[u8]>,
-        I: IntoIterator<Item = B>,
-        Self::Engine: Default,
-    {
-        let mut engine = Self::engine();
-        for slice in byte_slices {
-            engine.input(slice.as_ref());
-        }
-        Self::from_engine(engine)
-    }
-
-    /// Hashes the entire contents of the `reader`.
-    #[cfg(feature = "satsnet-io")]
-    fn hash_reader<R: io::BufRead>(reader: &mut R) -> Result<Self, io::Error>
-    where
-        Self::Engine: Default,
-    {
-        let mut engine = Self::engine();
-        loop {
-            let bytes = reader.fill_buf()?;
-
-            let read = bytes.len();
-            // Empty slice means EOF.
-            if read == 0 {
-                break;
-            }
-
-            engine.input(bytes);
-            reader.consume(read);
-        }
-        Ok(Self::from_engine(engine))
-    }
 }
 
 /// Trait which applies to hashes of all types.
@@ -266,16 +156,54 @@ pub trait Hash:
     + fmt::Debug
     + fmt::Display
     + fmt::LowerHex
-    + convert::AsRef<[u8]>
+    + ops::Index<ops::RangeFull, Output = [u8]>
+    + ops::Index<ops::RangeFrom<usize>, Output = [u8]>
+    + ops::Index<ops::RangeTo<usize>, Output = [u8]>
+    + ops::Index<ops::Range<usize>, Output = [u8]>
+    + ops::Index<usize, Output = u8>
+    + borrow::Borrow<[u8]>
 {
+    /// A hashing engine which bytes can be serialized into. It is expected
+    /// to implement the `io::Write` trait, and to never return errors under
+    /// any conditions.
+    type Engine: HashEngine;
+
     /// The byte array that represents the hash internally.
-    type Bytes: hex::FromHex + Copy + IsByteArray;
+    type Bytes: hex::FromHex + Copy;
+
+    /// Constructs a new engine.
+    fn engine() -> Self::Engine {
+        Self::Engine::default()
+    }
+
+    /// Produces a hash from the current state of a given engine.
+    fn from_engine(e: Self::Engine) -> Self;
 
     /// Length of the hash, in bytes.
-    const LEN: usize = Self::Bytes::LEN;
+    const LEN: usize;
 
     /// Copies a byte slice into a hash object.
     fn from_slice(sl: &[u8]) -> Result<Self, FromSliceError>;
+
+    /// Hashes some bytes.
+    fn hash(data: &[u8]) -> Self {
+        let mut engine = Self::engine();
+        engine.input(data);
+        Self::from_engine(engine)
+    }
+
+    /// Hashes all the byte slices retrieved from the iterator together.
+    fn hash_byte_chunks<B, I>(byte_slices: I) -> Self
+    where
+        B: AsRef<[u8]>,
+        I: IntoIterator<Item = B>,
+    {
+        let mut engine = Self::engine();
+        for slice in byte_slices {
+            engine.input(slice.as_ref());
+        }
+        Self::from_engine(engine)
+    }
 
     /// Flag indicating whether user-visible serializations of this hash
     /// should be backward. For some reason Satoshi decided this should be
@@ -290,23 +218,13 @@ pub trait Hash:
 
     /// Constructs a hash from the underlying byte array.
     fn from_byte_array(bytes: Self::Bytes) -> Self;
-}
 
-/// Ensures that a type is an array.
-pub trait IsByteArray: AsRef<[u8]> + sealed::IsByteArray {
-    /// The length of the array.
-    const LEN: usize;
-}
-
-impl<const N: usize> IsByteArray for [u8; N] {
-    const LEN: usize = N;
-}
-
-mod sealed {
-    #[doc(hidden)]
-    pub trait IsByteArray {}
-
-    impl<const N: usize> IsByteArray for [u8; N] {}
+    /// Returns an all zero hash.
+    ///
+    /// An all zeros hash is a made up construct because there is not a known input that can create
+    /// it, however it is used in various places in Bitcoin e.g., the Bitcoin genesis block's
+    /// previous blockhash and the coinbase transaction's outpoint txid.
+    fn all_zeros() -> Self;
 }
 
 /// Attempted to create a hash from an invalid length slice.
@@ -330,7 +248,11 @@ impl FromSliceError {
 
 impl fmt::Display for FromSliceError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "invalid slice length {} (expected {})", self.got, self.expected)
+        write!(
+            f,
+            "invalid slice length {} (expected {})",
+            self.got, self.expected
+        )
     }
 }
 

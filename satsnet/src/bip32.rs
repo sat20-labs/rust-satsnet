@@ -4,19 +4,21 @@
 //!
 //! Implementation of BIP32 hierarchical deterministic wallets, as defined
 //! at <https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki>.
+//!
 
 use core::ops::Index;
 use core::str::FromStr;
 use core::{fmt, slice};
 
-use hashes::{hash160, hash_newtype, sha512, GeneralHash, HashEngine, Hmac, HmacEngine};
+use hashes::{hash160, hash_newtype, sha512, Hash, HashEngine, Hmac, HmacEngine};
 use internals::{impl_array_newtype, write_err};
+use io::Write;
 use secp256k1::{Secp256k1, XOnlyPublicKey};
 
 use crate::crypto::key::{CompressedPublicKey, Keypair, PrivateKey};
-use crate::internal_macros::impl_array_newtype_stringify;
+use crate::internal_macros::impl_bytes_newtype;
 use crate::network::NetworkKind;
-use crate::prelude::{String, Vec};
+use crate::prelude::*;
 
 /// Version bytes for extended public keys on the Bitcoin network.
 const VERSION_BYTES_MAINNET_PUBLIC: [u8; 4] = [0x04, 0x88, 0xB2, 0x1E];
@@ -28,22 +30,24 @@ const VERSION_BYTES_TESTNETS_PUBLIC: [u8; 4] = [0x04, 0x35, 0x87, 0xCF];
 const VERSION_BYTES_TESTNETS_PRIVATE: [u8; 4] = [0x04, 0x35, 0x83, 0x94];
 
 /// The old name for xpub, extended public key.
-#[deprecated(since = "0.31.0", note = "use Xpub instead")]
-pub type ExtendedPubKey = Xpub;
+#[deprecated(since = "0.31.0", note = "use xpub instead")]
+pub type ExtendendPubKey = Xpub;
 
 /// The old name for xpriv, extended public key.
-#[deprecated(since = "0.31.0", note = "use Xpriv instead")]
-pub type ExtendedPrivKey = Xpriv;
+#[deprecated(since = "0.31.0", note = "use xpriv instead")]
+pub type ExtendendPrivKey = Xpriv;
 
 /// A chain code
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainCode([u8; 32]);
 impl_array_newtype!(ChainCode, u8, 32);
-impl_array_newtype_stringify!(ChainCode, 32);
+impl_bytes_newtype!(ChainCode, 32);
 
 impl ChainCode {
     fn from_hmac(hmac: Hmac<sha512::Hash>) -> Self {
-        hmac.as_ref()[32..].try_into().expect("half of hmac is guaranteed to be 32 bytes")
+        hmac[32..]
+            .try_into()
+            .expect("half of hmac is guaranteed to be 32 bytes")
     }
 }
 
@@ -51,7 +55,7 @@ impl ChainCode {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Fingerprint([u8; 4]);
 impl_array_newtype!(Fingerprint, u8, 4);
-impl_array_newtype_stringify!(Fingerprint, 4);
+impl_bytes_newtype!(Fingerprint, 4);
 
 hash_newtype! {
     /// Extended key identifier as defined in BIP-32.
@@ -76,7 +80,7 @@ pub struct Xpriv {
     pub chain_code: ChainCode,
 }
 #[cfg(feature = "serde")]
-internals::serde_string_impl!(Xpriv, "a BIP-32 extended private key");
+crate::serde_utils::serde_string_impl!(Xpriv, "a BIP-32 extended private key");
 
 #[cfg(not(feature = "std"))]
 impl fmt::Debug for Xpriv {
@@ -109,7 +113,7 @@ pub struct Xpub {
     pub chain_code: ChainCode,
 }
 #[cfg(feature = "serde")]
-internals::serde_string_impl!(Xpub, "a BIP-32 extended public key");
+crate::serde_utils::serde_string_impl!(Xpub, "a BIP-32 extended public key");
 
 /// A child number for a derived key
 #[derive(Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
@@ -125,19 +129,8 @@ pub enum ChildNumber {
         index: u32,
     },
 }
+
 impl ChildNumber {
-    /// Normal child number with index 0.
-    pub const ZERO_NORMAL: Self = ChildNumber::Normal { index: 0 };
-
-    /// Normal child number with index 1.
-    pub const ONE_NORMAL: Self = ChildNumber::Normal { index: 1 };
-
-    /// Hardened child number with index 0.
-    pub const ZERO_HARDENED: Self = ChildNumber::Hardened { index: 0 };
-
-    /// Hardened child number with index 1.
-    pub const ONE_HARDENED: Self = ChildNumber::Hardened { index: 1 };
-
     /// Create a [`Normal`] from an index, returns an error if the index is not within
     /// [0, 2^31 - 1].
     ///
@@ -191,7 +184,9 @@ impl ChildNumber {
 impl From<u32> for ChildNumber {
     fn from(number: u32) -> Self {
         if number & (1 << 31) != 0 {
-            ChildNumber::Hardened { index: number ^ (1 << 31) }
+            ChildNumber::Hardened {
+                index: number ^ (1 << 31),
+            }
         } else {
             ChildNumber::Normal { index: number }
         }
@@ -227,7 +222,9 @@ impl FromStr for ChildNumber {
         let is_hardened = inp.chars().last().map_or(false, |l| l == '\'' || l == 'h');
         Ok(if is_hardened {
             ChildNumber::from_hardened_idx(
-                inp[0..inp.len() - 1].parse().map_err(|_| Error::InvalidChildNumberFormat)?,
+                inp[0..inp.len() - 1]
+                    .parse()
+                    .map_err(|_| Error::InvalidChildNumberFormat)?,
             )?
         } else {
             ChildNumber::from_normal_idx(inp.parse().map_err(|_| Error::InvalidChildNumberFormat)?)?
@@ -273,7 +270,7 @@ pub trait IntoDerivationPath {
 pub struct DerivationPath(Vec<ChildNumber>);
 
 #[cfg(feature = "serde")]
-internals::serde_string_impl!(DerivationPath, "a BIP-32 derivation path");
+crate::serde_utils::serde_string_impl!(DerivationPath, "a BIP-32 derivation path");
 
 impl<I> Index<I> for DerivationPath
 where
@@ -383,7 +380,10 @@ pub struct DerivationPathIterator<'a> {
 impl<'a> DerivationPathIterator<'a> {
     /// Start a new [DerivationPathIterator] at the given child.
     pub fn start_from(path: &'a DerivationPath, start: ChildNumber) -> DerivationPathIterator<'a> {
-        DerivationPathIterator { base: path, next_child: Some(start) }
+        DerivationPathIterator {
+            base: path,
+            next_child: Some(start),
+        }
     }
 }
 
@@ -453,13 +453,14 @@ impl DerivationPath {
     ///
     /// ```
     /// use bitcoin::bip32::{DerivationPath, ChildNumber};
+    /// use std::str::FromStr;
     ///
-    /// let base = "m/42".parse::<DerivationPath>().unwrap();
+    /// let base = DerivationPath::from_str("m/42").unwrap();
     ///
-    /// let deriv_1 = base.extend("0/1".parse::<DerivationPath>().unwrap());
+    /// let deriv_1 = base.extend(DerivationPath::from_str("0/1").unwrap());
     /// let deriv_2 = base.extend(&[
-    ///     ChildNumber::ZERO_NORMAL,
-    ///     ChildNumber::ONE_NORMAL
+    ///     ChildNumber::from_normal_idx(0).unwrap(),
+    ///     ChildNumber::from_normal_idx(1).unwrap()
     /// ]);
     ///
     /// assert_eq!(deriv_1, deriv_2);
@@ -478,25 +479,12 @@ impl DerivationPath {
     /// use bitcoin::bip32::DerivationPath;
     /// use std::str::FromStr;
     ///
-    /// let path = "m/84'/0'/0'/0/1".parse::<DerivationPath>().unwrap();
+    /// let path = DerivationPath::from_str("m/84'/0'/0'/0/1").unwrap();
     /// const HARDENED: u32 = 0x80000000;
     /// assert_eq!(path.to_u32_vec(), vec![84 + HARDENED, HARDENED, HARDENED, 0, 1]);
     /// ```
     pub fn to_u32_vec(&self) -> Vec<u32> {
         self.into_iter().map(|&el| el.into()).collect()
-    }
-
-    /// Creates a derivation path from a slice of u32s.
-    /// ```
-    /// use bitcoin::bip32::DerivationPath;
-    ///
-    /// const HARDENED: u32 = 0x80000000;
-    /// let expected = vec![84 + HARDENED, HARDENED, HARDENED, 0, 1];
-    /// let path = DerivationPath::from_u32_slice(expected.as_slice());
-    /// assert_eq!(path.to_u32_vec(), expected);
-    /// ```
-    pub fn from_u32_slice(numbers: &[u32]) -> Self {
-        numbers.iter().map(|&n| ChildNumber::from(n)).collect()
     }
 }
 
@@ -563,9 +551,11 @@ impl fmt::Display for Error {
                 f.write_str("cannot derive hardened key from public key")
             }
             Secp256k1(ref e) => write_err!(f, "secp256k1 error"; e),
-            InvalidChildNumber(ref n) => {
-                write!(f, "child number {} is invalid (not within [0, 2^31 - 1])", n)
-            }
+            InvalidChildNumber(ref n) => write!(
+                f,
+                "child number {} is invalid (not within [0, 2^31 - 1])",
+                n
+            ),
             InvalidChildNumberFormat => f.write_str("invalid child number format"),
             InvalidDerivationPathFormat => f.write_str("invalid derivation path format"),
             UnknownVersion(ref bytes) => write!(f, "unknown version magic bytes: {:?}", bytes),
@@ -574,9 +564,11 @@ impl fmt::Display for Error {
             }
             Base58(ref e) => write_err!(f, "base58 encoding error"; e),
             Hex(ref e) => write_err!(f, "Hexadecimal decoding error"; e),
-            InvalidPublicKeyHexLength(got) => {
-                write!(f, "PublicKey hex should be 66 or 130 digits long, got: {}", got)
-            }
+            InvalidPublicKeyHexLength(got) => write!(
+                f,
+                "PublicKey hex should be 66 or 130 digits long, got: {}",
+                got
+            ),
             InvalidBase58PayloadLength(ref e) => write_err!(f, "base58 payload"; e),
         }
     }
@@ -632,15 +624,19 @@ impl Xpriv {
             network: network.into(),
             depth: 0,
             parent_fingerprint: Default::default(),
-            child_number: ChildNumber::ZERO_NORMAL,
-            private_key: secp256k1::SecretKey::from_slice(&hmac_result.as_ref()[..32])?,
+            child_number: ChildNumber::from_normal_idx(0)?,
+            private_key: secp256k1::SecretKey::from_slice(&hmac_result[..32])?,
             chain_code: ChainCode::from_hmac(hmac_result),
         })
     }
 
     /// Constructs ECDSA compressed private key matching internal secret key representation.
     pub fn to_priv(self) -> PrivateKey {
-        PrivateKey { compressed: true, network: self.network, inner: self.private_key }
+        PrivateKey {
+            compressed: true,
+            network: self.network,
+            inner: self.private_key,
+        }
     }
 
     /// Constructs BIP340 keypair for Schnorr signatures and Taproot use matching the internal
@@ -650,23 +646,27 @@ impl Xpriv {
             .expect("BIP32 internal private key representation is broken")
     }
 
-    /// Derives an extended private key from a path.
+    /// Attempts to derive an extended private key from a path.
     ///
     /// The `path` argument can be both of type `DerivationPath` or `Vec<ChildNumber>`.
     pub fn derive_priv<C: secp256k1::Signing, P: AsRef<[ChildNumber]>>(
         &self,
         secp: &Secp256k1<C>,
         path: &P,
-    ) -> Xpriv {
+    ) -> Result<Xpriv, Error> {
         let mut sk: Xpriv = *self;
         for cnum in path.as_ref() {
-            sk = sk.ckd_priv(secp, *cnum)
+            sk = sk.ckd_priv(secp, *cnum)?;
         }
-        sk
+        Ok(sk)
     }
 
     /// Private->Private child key derivation
-    fn ckd_priv<C: secp256k1::Signing>(&self, secp: &Secp256k1<C>, i: ChildNumber) -> Xpriv {
+    fn ckd_priv<C: secp256k1::Signing>(
+        &self,
+        secp: &Secp256k1<C>,
+        i: ChildNumber,
+    ) -> Result<Xpriv, Error> {
         let mut hmac_engine: HmacEngine<sha512::Hash> = HmacEngine::new(&self.chain_code[..]);
         match i {
             ChildNumber::Normal { .. } => {
@@ -684,19 +684,20 @@ impl Xpriv {
 
         hmac_engine.input(&u32::from(i).to_be_bytes());
         let hmac_result: Hmac<sha512::Hash> = Hmac::from_engine(hmac_engine);
-        let sk = secp256k1::SecretKey::from_slice(&hmac_result.as_ref()[..32])
+        let sk = secp256k1::SecretKey::from_slice(&hmac_result[..32])
             .expect("statistically impossible to hit");
-        let tweaked =
-            sk.add_tweak(&self.private_key.into()).expect("statistically impossible to hit");
+        let tweaked = sk
+            .add_tweak(&self.private_key.into())
+            .expect("statistically impossible to hit");
 
-        Xpriv {
+        Ok(Xpriv {
             network: self.network,
             depth: self.depth + 1,
             parent_fingerprint: self.fingerprint(secp),
             child_number: i,
             private_key: tweaked,
             chain_code: ChainCode::from_hmac(hmac_result),
-        }
+        })
     }
 
     /// Decoding extended private key from binary data according to BIP 32
@@ -751,7 +752,9 @@ impl Xpriv {
 
     /// Returns the first four bytes of the identifier
     pub fn fingerprint<C: secp256k1::Signing>(&self, secp: &Secp256k1<C>) -> Fingerprint {
-        self.identifier(secp)[0..4].try_into().expect("4 is the fingerprint length")
+        self.identifier(secp)[0..4]
+            .try_into()
+            .expect("4 is the fingerprint length")
     }
 }
 
@@ -809,7 +812,7 @@ impl Xpub {
 
                 let hmac_result: Hmac<sha512::Hash> = Hmac::from_engine(hmac_engine);
 
-                let private_key = secp256k1::SecretKey::from_slice(&hmac_result.as_ref()[..32])?;
+                let private_key = secp256k1::SecretKey::from_slice(&hmac_result[..32])?;
                 let chain_code = ChainCode::from_hmac(hmac_result);
                 Ok((private_key, chain_code))
             }
@@ -881,12 +884,18 @@ impl Xpub {
 
     /// Returns the HASH160 of the chaincode
     pub fn identifier(&self) -> XKeyIdentifier {
-        XKeyIdentifier(hash160::Hash::hash(&self.public_key.serialize()))
+        let mut engine = XKeyIdentifier::engine();
+        engine
+            .write_all(&self.public_key.serialize())
+            .expect("engines don't error");
+        XKeyIdentifier::from_engine(engine)
     }
 
     /// Returns the first four bytes of the identifier
     pub fn fingerprint(&self) -> Fingerprint {
-        self.identifier()[0..4].try_into().expect("4 is the fingerprint length")
+        self.identifier()[0..4]
+            .try_into()
+            .expect("4 is the fingerprint length")
     }
 }
 

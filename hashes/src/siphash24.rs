@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: CC0-1.0
 
 //! SipHash 2-4 implementation.
+//!
 
 use core::ops::Index;
 use core::slice::SliceIndex;
-use core::{cmp, mem, ptr};
+use core::{cmp, mem, ptr, str};
 
-use crate::HashEngine as _;
+use crate::{FromSliceError, Hash as _, HashEngine as _};
 
-crate::internal_macros::hash_type_no_default! {
+crate::internal_macros::hash_type! {
     64,
     false,
     "Output of the SipHash24 hash function."
@@ -21,7 +22,7 @@ fn from_engine(e: HashEngine) -> Hash {
 
 #[cfg(hashes_fuzz)]
 fn from_engine(e: HashEngine) -> Hash {
-    let state = e.state.clone();
+    let state = e.midstate();
     Hash::from_u64(state.v0 ^ state.v1 ^ state.v2 ^ state.v3)
 }
 
@@ -108,6 +109,12 @@ impl HashEngine {
         }
     }
 
+    /// Creates a new SipHash24 engine.
+    #[inline]
+    pub const fn new() -> HashEngine {
+        HashEngine::with_keys(0, 0)
+    }
+
     /// Retrieves the keys of this engine.
     pub fn keys(&self) -> (u64, u64) {
         (self.k0, self.k1)
@@ -128,7 +135,19 @@ impl HashEngine {
     }
 }
 
+impl Default for HashEngine {
+    fn default() -> Self {
+        HashEngine::new()
+    }
+}
+
 impl crate::HashEngine for HashEngine {
+    type MidState = State;
+
+    fn midstate(&self) -> State {
+        self.state.clone()
+    }
+
     const BLOCK_SIZE: usize = 8;
 
     #[inline]
@@ -209,13 +228,7 @@ impl Hash {
     }
 
     /// Returns the (little endian) 64-bit integer representation of the hash value.
-    #[deprecated(since = "TBD", note = "use `to_u64` instead")]
     pub fn as_u64(&self) -> u64 {
-        self.to_u64()
-    }
-
-    /// Returns the (little endian) 64-bit integer representation of the hash value.
-    pub fn to_u64(self) -> u64 {
         u64::from_le_bytes(self.0)
     }
 

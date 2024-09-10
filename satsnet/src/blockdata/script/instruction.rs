@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: CC0-1.0
 
-use super::{
-    read_uint_iter, Error, PushBytes, Script, ScriptBuf, ScriptBufExtPriv as _, UintError,
-};
-use crate::opcodes::{self, Opcode};
+use crate::blockdata::opcodes::{self, Opcode};
+use crate::blockdata::script::{read_uint_iter, Error, PushBytes, Script, ScriptBuf, UintError};
 
 /// A "parsed opcode" which allows iterating over a [`Script`] in a more sensible way.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -61,27 +59,6 @@ impl<'a> Instruction<'a> {
         match self {
             Instruction::Op(_) => 1,
             Instruction::PushBytes(bytes) => ScriptBuf::reserved_len_for_slice(bytes.len()),
-        }
-    }
-
-    /// Reads an integer from an Instruction,
-    /// returning Some(i64) for valid opcodes or pushed bytes, otherwise None
-    pub fn read_int(&self) -> Option<i64> {
-        match self {
-            Instruction::Op(op) => {
-                let v = op.to_u8();
-                match v {
-                    // OP_PUSHNUM_1 ..= OP_PUSHNUM_16
-                    0x51..=0x60 => Some(v as i64 - 0x50),
-                    // OP_PUSHNUM_NEG1
-                    0x4f => Some(-1),
-                    _ => None,
-                }
-            }
-            Instruction::PushBytes(bytes) => match bytes.read_scriptint() {
-                Ok(v) => Some(v),
-                _ => None,
-            },
         }
     }
 }

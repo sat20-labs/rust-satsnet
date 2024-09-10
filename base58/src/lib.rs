@@ -4,8 +4,6 @@
 //!
 //! This crate can be used in a no-std environment but requires an allocator.
 
-// NB: This crate is empty if `alloc` is not enabled.
-#![cfg(feature = "alloc")]
 #![no_std]
 // Experimental features we need.
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
@@ -18,6 +16,7 @@
 #![allow(clippy::needless_question_mark)] // https://github.com/rust-bitcoin/rust-bitcoin/pull/2134
 #![allow(clippy::manual_range_contains)] // More readable than clippy's format.
 
+#[macro_use]
 extern crate alloc;
 
 #[cfg(feature = "std")]
@@ -29,12 +28,11 @@ pub mod error;
 
 #[cfg(not(feature = "std"))]
 pub use alloc::{string::String, vec::Vec};
-use core::fmt;
+use core::{fmt, iter, slice, str};
 #[cfg(feature = "std")]
 pub use std::{string::String, vec::Vec};
 
-use hashes::sha256d;
-use internals::array_vec::ArrayVec;
+use hashes::{sha256d, Hash};
 
 use crate::error::{IncorrectChecksumError, TooShortError};
 
@@ -65,38 +63,35 @@ static BASE58_DIGITS: [Option<u8>; 128] = [
 /// Decodes a base58-encoded string into a byte vector.
 pub fn decode(data: &str) -> Result<Vec<u8>, InvalidCharacterError> {
     // 11/15 is just over log_256(58)
-    let mut scratch = Vec::with_capacity(1 + data.len() * 11 / 15);
+    let mut scratch = vec![0u8; 1 + data.len() * 11 / 15];
     // Build in base 256
     for d58 in data.bytes() {
         // Compute "X = X * 58 + next_digit" in base 256
-        if usize::from(d58) >= BASE58_DIGITS.len() {
+        if d58 as usize >= BASE58_DIGITS.len() {
             return Err(InvalidCharacterError { invalid: d58 });
         }
-        let mut carry = match BASE58_DIGITS[usize::from(d58)] {
-            Some(d58) => u32::from(d58),
+        let mut carry = match BASE58_DIGITS[d58 as usize] {
+            Some(d58) => d58 as u32,
             None => {
                 return Err(InvalidCharacterError { invalid: d58 });
             }
         };
-        if scratch.is_empty() {
-            for _ in 0..scratch.capacity() {
-                scratch.push(carry as u8);
-                carry /= 256;
-            }
-        } else {
-            for d256 in scratch.iter_mut() {
-                carry += u32::from(*d256) * 58;
-                *d256 = carry as u8; // cast loses data intentionally
-                carry /= 256;
-            }
+        for d256 in scratch.iter_mut().rev() {
+            carry += *d256 as u32 * 58;
+            *d256 = carry as u8;
+            carry /= 256;
         }
         assert_eq!(carry, 0);
     }
 
     // Copy leading zeroes directly
-    let mut ret: Vec<u8> = data.bytes().take_while(|&x| x == BASE58_CHARS[0]).map(|_| 0).collect();
+    let mut ret: Vec<u8> = data
+        .bytes()
+        .take_while(|&x| x == BASE58_CHARS[0])
+        .map(|_| 0)
+        .collect();
     // Copy rest of string
-    ret.extend(scratch.into_iter().rev().skip_while(|&x| x == 0));
+    ret.extend(scratch.into_iter().skip_while(|&x| x == 0));
     Ok(ret)
 }
 
@@ -108,148 +103,133 @@ pub fn decode_check(data: &str) -> Result<Vec<u8>, Error> {
     }
     let check_start = ret.len() - 4;
 
-    let hash_check =
-        sha256d::Hash::hash(&ret[..check_start])[..4].try_into().expect("4 byte slice");
+    let hash_check = sha256d::Hash::hash(&ret[..check_start])[..4]
+        .try_into()
+        .expect("4 byte slice");
     let data_check = ret[check_start..].try_into().expect("4 byte slice");
 
     let expected = u32::from_le_bytes(hash_check);
     let actual = u32::from_le_bytes(data_check);
 
     if actual != expected {
-        return Err(IncorrectChecksumError { incorrect: actual, expected }.into());
+        return Err(IncorrectChecksumError {
+            incorrect: actual,
+            expected,
+        }
+        .into());
     }
 
     ret.truncate(check_start);
     Ok(ret)
 }
 
-const SHORT_OPT_BUFFER_LEN: usize = 128;
-
 /// Encodes `data` as a base58 string (see also `base58::encode_check()`).
 pub fn encode(data: &[u8]) -> String {
-    let reserve_len = encoded_reserve_len(data.len());
-    let mut res = String::with_capacity(reserve_len);
-    if reserve_len <= SHORT_OPT_BUFFER_LEN {
-        format_iter(
-            &mut res,
-            data.iter().copied(),
-            &mut ArrayVec::<u8, SHORT_OPT_BUFFER_LEN>::new(),
-        )
-    } else {
-        format_iter(&mut res, data.iter().copied(), &mut Vec::with_capacity(reserve_len))
-    }
-    .expect("string doesn't error");
-    res
+    encode_iter(data.iter().cloned())
 }
 
 /// Encodes `data` as a base58 string including the checksum.
 ///
 /// The checksum is the first four bytes of the sha256d of the data, concatenated onto the end.
 pub fn encode_check(data: &[u8]) -> String {
-    let mut res = String::with_capacity(encoded_check_reserve_len(data.len()));
-    encode_check_to_writer(&mut res, data).expect("string doesn't fail");
-    res
+    let checksum = sha256d::Hash::hash(data);
+    encode_iter(data.iter().cloned().chain(checksum[0..4].iter().cloned()))
 }
 
 /// Encodes a slice as base58, including the checksum, into a formatter.
 ///
 /// The checksum is the first four bytes of the sha256d of the data, concatenated onto the end.
 pub fn encode_check_to_fmt(fmt: &mut fmt::Formatter, data: &[u8]) -> fmt::Result {
-    encode_check_to_writer(fmt, data)
-}
-
-fn encode_check_to_writer(fmt: &mut impl fmt::Write, data: &[u8]) -> fmt::Result {
     let checksum = sha256d::Hash::hash(data);
     let iter = data.iter().cloned().chain(checksum[0..4].iter().cloned());
-    let reserve_len = encoded_check_reserve_len(data.len());
-    if reserve_len <= SHORT_OPT_BUFFER_LEN {
-        format_iter(fmt, iter, &mut ArrayVec::<u8, SHORT_OPT_BUFFER_LEN>::new())
-    } else {
-        format_iter(fmt, iter, &mut Vec::with_capacity(reserve_len))
-    }
+    format_iter(fmt, iter)
 }
 
-/// Returns the length to reserve when encoding base58 without checksum
-const fn encoded_reserve_len(unencoded_len: usize) -> usize {
-    // log2(256) / log2(58) ~ 1.37 = 137 / 100
-    unencoded_len * 137 / 100
+fn encode_iter<I>(data: I) -> String
+where
+    I: Iterator<Item = u8> + Clone,
+{
+    let mut ret = String::new();
+    format_iter(&mut ret, data).expect("writing into string shouldn't fail");
+    ret
 }
 
-/// Returns the length to reserve when encoding base58 with checksum
-const fn encoded_check_reserve_len(unencoded_len: usize) -> usize {
-    encoded_reserve_len(unencoded_len + 4)
-}
-
-trait Buffer: Sized {
-    fn push(&mut self, val: u8);
-    fn slice(&self) -> &[u8];
-    fn slice_mut(&mut self) -> &mut [u8];
-}
-
-impl Buffer for Vec<u8> {
-    fn push(&mut self, val: u8) {
-        Vec::push(self, val)
-    }
-
-    fn slice(&self) -> &[u8] {
-        self
-    }
-
-    fn slice_mut(&mut self) -> &mut [u8] {
-        self
-    }
-}
-
-impl<const N: usize> Buffer for ArrayVec<u8, N> {
-    fn push(&mut self, val: u8) {
-        ArrayVec::push(self, val)
-    }
-
-    fn slice(&self) -> &[u8] {
-        self.as_slice()
-    }
-
-    fn slice_mut(&mut self) -> &mut [u8] {
-        self.as_mut_slice()
-    }
-}
-
-fn format_iter<I, W>(writer: &mut W, data: I, buf: &mut impl Buffer) -> Result<(), fmt::Error>
+fn format_iter<I, W>(writer: &mut W, data: I) -> Result<(), fmt::Error>
 where
     I: Iterator<Item = u8> + Clone,
     W: fmt::Write,
 {
+    let mut ret = SmallVec::new();
+
     let mut leading_zero_count = 0;
     let mut leading_zeroes = true;
     // Build string in little endian with 0-58 in place of characters...
     for d256 in data {
-        let mut carry = u32::from(d256);
+        let mut carry = d256 as usize;
         if leading_zeroes && carry == 0 {
             leading_zero_count += 1;
         } else {
             leading_zeroes = false;
         }
 
-        for ch in buf.slice_mut() {
-            let new_ch = u32::from(*ch) * 256 + carry;
-            *ch = (new_ch % 58) as u8; // cast loses data intentionally
+        for ch in ret.iter_mut() {
+            let new_ch = *ch as usize * 256 + carry;
+            *ch = (new_ch % 58) as u8;
             carry = new_ch / 58;
         }
-
         while carry > 0 {
-            buf.push((carry % 58) as u8); // cast loses data intentionally
+            ret.push((carry % 58) as u8);
             carry /= 58;
         }
     }
 
     // ... then reverse it and convert to chars
     for _ in 0..leading_zero_count {
-        buf.push(0);
+        ret.push(0);
     }
 
-    for ch in buf.slice().iter().rev() {
-        writer.write_char(char::from(BASE58_CHARS[usize::from(*ch)]))?;
+    for ch in ret.iter().rev() {
+        writer.write_char(BASE58_CHARS[*ch as usize] as char)?;
     }
 
     Ok(())
+}
+
+/// Vector-like object that holds the first 100 elements on the stack. If more space is needed it
+/// will be allocated on the heap.
+struct SmallVec<T> {
+    len: usize,
+    stack: [T; 100],
+    heap: Vec<T>,
+}
+
+impl<T: Default + Copy> SmallVec<T> {
+    fn new() -> SmallVec<T> {
+        SmallVec {
+            len: 0,
+            stack: [T::default(); 100],
+            heap: Vec::new(),
+        }
+    }
+
+    fn push(&mut self, val: T) {
+        if self.len < 100 {
+            self.stack[self.len] = val;
+            self.len += 1;
+        } else {
+            self.heap.push(val);
+        }
+    }
+
+    fn iter(&self) -> iter::Chain<slice::Iter<T>, slice::Iter<T>> {
+        // If len<100 then we just append an empty vec
+        self.stack[0..self.len].iter().chain(self.heap.iter())
+    }
+
+    fn iter_mut(&mut self) -> iter::Chain<slice::IterMut<T>, slice::IterMut<T>> {
+        // If len<100 then we just append an empty vec
+        self.stack[0..self.len]
+            .iter_mut()
+            .chain(self.heap.iter_mut())
+    }
 }

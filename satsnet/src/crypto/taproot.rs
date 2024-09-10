@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: CC0-1.0
 
-//! Bitcoin Taproot keys.
+//! Bitcoin taproot keys.
 //!
-//! This module provides Taproot keys used in Bitcoin (including reexporting secp256k1 keys).
+//! This module provides taproot keys used in Bitcoin (including reexporting secp256k1 keys).
+//!
 
 use core::fmt;
 
 use internals::write_err;
 use io::Write;
 
-use crate::prelude::Vec;
+use crate::prelude::*;
 use crate::sighash::{InvalidSighashTypeError, TapSighashType};
 use crate::taproot::serialized_signature::{self, SerializedSignature};
 
-/// A BIP340-341 serialized Taproot signature with the corresponding hash type.
+/// A BIP340-341 serialized taproot signature with the corresponding hash type.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Signature {
     /// The underlying schnorr signature.
     pub signature: secp256k1::schnorr::Signature,
@@ -24,7 +26,7 @@ pub struct Signature {
 }
 
 impl Signature {
-    /// Deserializes the signature from a slice.
+    /// Deserialize from slice
     pub fn from_slice(sl: &[u8]) -> Result<Self, SigFromSliceError> {
         match sl.len() {
             64 => {
@@ -33,7 +35,7 @@ impl Signature {
                 Ok(Signature { signature, sighash_type: TapSighashType::Default })
             }
             65 => {
-                let (sighash_type, signature) = sl.split_last().expect("slice len checked == 65");
+                let (sighash_type, signature) = sl.split_last().expect("Slice len checked == 65");
                 let sighash_type = TapSighashType::from_consensus_u8(*sighash_type)?;
                 let signature = secp256k1::schnorr::Signature::from_slice(signature)?;
                 Ok(Signature { signature, sighash_type })
@@ -42,10 +44,10 @@ impl Signature {
         }
     }
 
-    /// Serializes the signature.
+    /// Serialize Signature
     ///
     /// Note: this allocates on the heap, prefer [`serialize`](Self::serialize) if vec is not needed.
-    pub fn to_bytes(self) -> Vec<u8> {
+    pub fn to_vec(self) -> Vec<u8> {
         let mut ser_sig = self.signature.as_ref().to_vec();
         if self.sighash_type == TapSighashType::Default {
             // default sighash type, don't add extra sighash byte
@@ -55,10 +57,6 @@ impl Signature {
         ser_sig
     }
 
-    /// Serializes the signature.
-    #[deprecated(since = "TBD", note = "Use to_bytes instead")]
-    pub fn to_vec(self) -> Vec<u8> { self.to_bytes() }
-
     /// Serializes the signature to `writer`.
     #[inline]
     pub fn serialize_to_writer<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), io::Error> {
@@ -66,7 +64,7 @@ impl Signature {
         sig.write_to(writer)
     }
 
-    /// Serializes the signature (without heap allocation).
+    /// Serializes the signature (without heap allocation)
     ///
     /// This returns a type with an API very similar to that of `Box<[u8]>`.
     /// You can get a slice from it using deref coercions or turn it into an iterator.
@@ -95,7 +93,7 @@ pub enum SigFromSliceError {
     SighashType(InvalidSighashTypeError),
     /// A secp256k1 error.
     Secp256k1(secp256k1::Error),
-    /// Invalid Taproot signature size
+    /// Invalid taproot signature size
     InvalidSignatureSize(usize),
 }
 
@@ -108,7 +106,7 @@ impl fmt::Display for SigFromSliceError {
         match *self {
             SighashType(ref e) => write_err!(f, "sighash"; e),
             Secp256k1(ref e) => write_err!(f, "secp256k1"; e),
-            InvalidSignatureSize(sz) => write!(f, "invalid Taproot signature size: {}", sz),
+            InvalidSignatureSize(sz) => write!(f, "invalid taproot signature size: {}", sz),
         }
     }
 }

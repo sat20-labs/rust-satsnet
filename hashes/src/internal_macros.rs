@@ -63,14 +63,33 @@ pub(crate) use arr_newtype_fmt_impl;
 ///
 /// * There must be a free-standing `fn from_engine(HashEngine) -> Hash` in the scope
 /// * `fn internal_new([u8; $bits / 8]) -> Self` must exist on `Hash`
+/// * `fn internal_engine() -> HashEngine` must exist on `Hash`
 ///
 /// `from_engine` obviously implements the finalization algorithm.
+/// `internal_new` is required so that types with more than one field are constructible.
+/// `internal_engine` is required to initialize the engine for given hash type.
 macro_rules! hash_trait_impls {
     ($bits:expr, $reverse:expr $(, $gen:ident: $gent:ident)*) => {
-        impl<$($gen: $gent),*> $crate::_export::_core::str::FromStr for Hash<$($gen),*> {
+        impl<$($gen: $gent),*> Hash<$($gen),*> {
+            /// Zero cost conversion between a fixed length byte array shared reference and
+            /// a shared reference to this Hash type.
+            pub fn from_bytes_ref(bytes: &[u8; $bits / 8]) -> &Self {
+                // Safety: Sound because Self is #[repr(transparent)] containing [u8; $bits / 8]
+                unsafe { &*(bytes as *const _ as *const Self) }
+            }
+
+            /// Zero cost conversion between a fixed length byte array exclusive reference and
+            /// an exclusive reference to this Hash type.
+            pub fn from_bytes_mut(bytes: &mut [u8; $bits / 8]) -> &mut Self {
+                // Safety: Sound because Self is #[repr(transparent)] containing [u8; $bits / 8]
+                unsafe { &mut *(bytes as *mut _ as *mut Self) }
+            }
+        }
+
+        impl<$($gen: $gent),*> str::FromStr for Hash<$($gen),*> {
             type Err = $crate::hex::HexToArrayError;
             fn from_str(s: &str) -> $crate::_export::_core::result::Result<Self, Self::Err> {
-                use $crate::{hex::{FromHex}};
+                use $crate::{Hash, hex::{FromHex}};
 
                 let mut bytes = <[u8; $bits / 8]>::from_hex(s)?;
                 if $reverse {
@@ -99,26 +118,46 @@ macro_rules! hash_trait_impls {
             }
         }
 
-        impl<$($gen: $gent),*> $crate::GeneralHash for Hash<$($gen),*> {
+        impl<$($gen: $gent),*> crate::Hash for Hash<$($gen),*> {
             type Engine = HashEngine;
-
-            fn from_engine(e: HashEngine) -> Hash<$($gen),*> { Self::from_engine(e) }
-        }
-
-        impl<$($gen: $gent),*> $crate::Hash for Hash<$($gen),*> {
             type Bytes = [u8; $bits / 8];
 
+            const LEN: usize = $bits / 8;
             const DISPLAY_BACKWARD: bool = $reverse;
 
-            fn from_slice(sl: &[u8]) -> $crate::_export::_core::result::Result<Hash<$($gen),*>, $crate::FromSliceError> {
-                Self::from_slice(sl)
+            fn engine() -> Self::Engine {
+                Self::internal_engine()
             }
 
-            fn to_byte_array(self) -> Self::Bytes { self.to_byte_array() }
+            fn from_engine(e: HashEngine) -> Hash<$($gen),*> {
+                from_engine(e)
+            }
 
-            fn as_byte_array(&self) -> &Self::Bytes { self.as_byte_array() }
+            fn from_slice(sl: &[u8]) -> $crate::_export::_core::result::Result<Hash<$($gen),*>, FromSliceError> {
+                if sl.len() != $bits / 8 {
+                    Err(FromSliceError{expected: Self::LEN, got: sl.len()})
+                } else {
+                    let mut ret = [0; $bits / 8];
+                    ret.copy_from_slice(sl);
+                    Ok(Self::internal_new(ret))
+                }
+            }
 
-            fn from_byte_array(bytes: Self::Bytes) -> Self { Self::from_byte_array(bytes) }
+            fn to_byte_array(self) -> Self::Bytes {
+                self.0
+            }
+
+            fn as_byte_array(&self) -> &Self::Bytes {
+                &self.0
+            }
+
+            fn from_byte_array(bytes: Self::Bytes) -> Self {
+                Self::internal_new(bytes)
+            }
+
+            fn all_zeros() -> Self {
+                Hash::internal_new([0x00; $bits / 8])
+            }
         }
     }
 }
@@ -126,8 +165,8 @@ pub(crate) use hash_trait_impls;
 
 /// Creates a type called `Hash` and implements standard interface for it.
 ///
-/// The created type has a single field and will have all standard derives as well as an
-/// implementation of [`crate::Hash`].
+/// The created type will have all standard derives, `Hash` impl and implementation of
+/// `internal_engine` returning default. The created type has a single field.
 ///
 /// Arguments:
 ///
@@ -140,112 +179,22 @@ pub(crate) use hash_trait_impls;
 /// [`hash_trait_impls`].
 macro_rules! hash_type {
     ($bits:expr, $reverse:expr, $doc:literal) => {
-        $crate::internal_macros::hash_type_no_default!($bits, $reverse, $doc);
-
-        impl Hash {
-            /// Constructs a new engine.
-            pub fn engine() -> HashEngine {
-                Default::default()
-            }
-
-            /// Hashes some bytes.
-            #[allow(clippy::self_named_constructors)] // Hash is a noun and a verb.
-            pub fn hash(data: &[u8]) -> Self {
-                <Self as $crate::GeneralHash>::hash(data)
-            }
-
-            /// Hashes all the byte slices retrieved from the iterator together.
-            pub fn hash_byte_chunks<B, I>(byte_slices: I) -> Self
-            where
-                B: AsRef<[u8]>,
-                I: IntoIterator<Item = B>,
-            {
-                <Self as $crate::GeneralHash>::hash_byte_chunks(byte_slices)
-            }
-
-            /// Hashes the entire contents of the `reader`.
-            #[cfg(feature = "satsnet-io")]
-            pub fn hash_reader<R: io::BufRead>(reader: &mut R) -> Result<Self, io::Error> {
-                <Self as $crate::GeneralHash>::hash_reader(reader)
-            }
-        }
-    };
-}
-pub(crate) use hash_type;
-
-macro_rules! hash_type_no_default {
-    ($bits:expr, $reverse:expr, $doc:literal) => {
         #[doc = $doc]
         #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         #[repr(transparent)]
         pub struct Hash([u8; $bits / 8]);
 
         impl Hash {
-            const fn internal_new(arr: [u8; $bits / 8]) -> Self {
-                Hash(arr)
-            }
+            fn internal_new(arr: [u8; $bits / 8]) -> Self { Hash(arr) }
 
-            /// Zero cost conversion between a fixed length byte array shared reference and
-            /// a shared reference to this Hash type.
-            pub fn from_bytes_ref(bytes: &[u8; $bits / 8]) -> &Self {
-                // Safety: Sound because Self is #[repr(transparent)] containing [u8; $bits / 8]
-                unsafe { &*(bytes as *const _ as *const Self) }
-            }
-
-            /// Zero cost conversion between a fixed length byte array exclusive reference and
-            /// an exclusive reference to this Hash type.
-            pub fn from_bytes_mut(bytes: &mut [u8; $bits / 8]) -> &mut Self {
-                // Safety: Sound because Self is #[repr(transparent)] containing [u8; $bits / 8]
-                unsafe { &mut *(bytes as *mut _ as *mut Self) }
-            }
-
-            /// Produces a hash from the current state of a given engine.
-            pub fn from_engine(e: HashEngine) -> Hash {
-                from_engine(e)
-            }
-
-            /// Copies a byte slice into a hash object.
-            pub fn from_slice(
-                sl: &[u8],
-            ) -> $crate::_export::_core::result::Result<Hash, $crate::FromSliceError> {
-                if sl.len() != $bits / 8 {
-                    Err($crate::FromSliceError { expected: $bits / 8, got: sl.len() })
-                } else {
-                    let mut ret = [0; $bits / 8];
-                    ret.copy_from_slice(sl);
-                    Ok(Self::internal_new(ret))
-                }
-            }
-
-            /// Returns the underlying byte array.
-            pub const fn to_byte_array(self) -> [u8; $bits / 8] {
-                self.0
-            }
-
-            /// Returns a reference to the underlying byte array.
-            pub const fn as_byte_array(&self) -> &[u8; $bits / 8] {
-                &self.0
-            }
-
-            /// Constructs a hash from the underlying byte array.
-            pub const fn from_byte_array(bytes: [u8; $bits / 8]) -> Self {
-                Self::internal_new(bytes)
-            }
+            fn internal_engine() -> HashEngine { Default::default() }
         }
 
         #[cfg(feature = "schemars")]
         impl schemars::JsonSchema for Hash {
-            fn schema_name() -> alloc::string::String {
-                use alloc::borrow::ToOwned;
-
-                "Hash".to_owned()
-            }
+            fn schema_name() -> String { "Hash".to_owned() }
 
             fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-                use alloc::borrow::ToOwned;
-                use alloc::boxed::Box;
-                use alloc::string::String;
-
                 let len = $bits / 8;
                 let mut schema: schemars::schema::SchemaObject = <String>::json_schema(gen).into();
                 schema.string = Some(Box::new(schemars::schema::StringValidation {
@@ -257,7 +206,7 @@ macro_rules! hash_type_no_default {
             }
         }
 
-        $crate::internal_macros::hash_trait_impls!($bits, $reverse);
+        crate::internal_macros::hash_trait_impls!($bits, $reverse);
     };
 }
-pub(crate) use hash_type_no_default;
+pub(crate) use hash_type;

@@ -7,20 +7,20 @@ use hashes::{hash160, ripemd160, sha256, sha256d};
 use secp256k1::XOnlyPublicKey;
 
 use crate::bip32::KeySource;
+use crate::blockdata::script::ScriptBuf;
+use crate::blockdata::transaction::{Transaction, TxOut};
+use crate::blockdata::witness::Witness;
 use crate::crypto::key::PublicKey;
 use crate::crypto::{ecdsa, taproot};
-use crate::prelude::{btree_map, BTreeMap, Borrow, Box, ToOwned, Vec};
+use crate::prelude::*;
 use crate::psbt::map::Map;
 use crate::psbt::serialize::Deserialize;
 use crate::psbt::{self, error, raw, Error};
-use crate::script::ScriptBuf;
 use crate::sighash::{
     EcdsaSighashType, InvalidSighashTypeError, NonStandardSighashTypeError, SighashTypeParseError,
     TapSighashType,
 };
 use crate::taproot::{ControlBlock, LeafVersion, TapLeafHash, TapNodeHash};
-use crate::transaction::{Transaction, TxOut};
-use crate::witness::Witness;
 
 /// Type: Non-Witness UTXO PSBT_IN_NON_WITNESS_UTXO = 0x00
 const PSBT_IN_NON_WITNESS_UTXO: u8 = 0x00;
@@ -67,6 +67,7 @@ const PSBT_IN_PROPRIETARY: u8 = 0xFC;
 /// transaction.
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Input {
     /// The non-witness transaction this input spends from. Should only be
     /// `Option::Some` for inputs which spend non-segwit outputs or
@@ -77,7 +78,7 @@ pub struct Input {
     /// including P2SH embedded ones.
     pub witness_utxo: Option<TxOut>,
     /// A map from public keys to their corresponding signature as would be
-    /// pushed to the stack from a scriptSig or witness for a non-Taproot inputs.
+    /// pushed to the stack from a scriptSig or witness for a non-taproot inputs.
     pub partial_sigs: BTreeMap<PublicKey, ecdsa::Signature>,
     /// The sighash type to be used for this input. Signatures for this input
     /// must use the sighash type.
@@ -108,7 +109,7 @@ pub struct Input {
     /// HAS256 hash to preimage map.
     #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::btreemap_byte_values"))]
     pub hash256_preimages: BTreeMap<sha256d::Hash, Vec<u8>>,
-    /// Serialized Taproot signature with sighash type for key spend.
+    /// Serialized taproot signature with sighash type for key spend.
     pub tap_key_sig: Option<taproot::Signature>,
     /// Map of `<xonlypubkey>|<leafhash>` with signature.
     #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::btreemap_as_seq"))]
@@ -131,24 +132,13 @@ pub struct Input {
     pub unknown: BTreeMap<raw::Key, Vec<u8>>,
 }
 
-/// A Signature hash type for the corresponding input.
-///
-/// As of Taproot upgrade, the signature hash type can be either [`EcdsaSighashType`] or
-/// [`TapSighashType`] but it is not possible to know directly which signature hash type the user is
-/// dealing with. Therefore, the user is responsible for converting to/from [`PsbtSighashType`]
-/// from/to the desired signature hash type they need.
-///
-/// # Examples
-///
-/// ```
-/// use bitcoin::{EcdsaSighashType, TapSighashType};
-/// use bitcoin::psbt::PsbtSighashType;
-///
-/// let ecdsa_sighash_all: PsbtSighashType = EcdsaSighashType::All.into();
-/// let tap_sighash_all: PsbtSighashType = TapSighashType::All.into();
-/// ```
+/// A Signature hash type for the corresponding input. As of taproot upgrade, the signature hash
+/// type can be either [`EcdsaSighashType`] or [`TapSighashType`] but it is not possible to know
+/// directly which signature hash type the user is dealing with. Therefore, the user is responsible
+/// for converting to/from [`PsbtSighashType`] from/to the desired signature hash type they need.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct PsbtSighashType {
     pub(in crate::psbt) inner: u32,
 }
@@ -169,10 +159,10 @@ impl FromStr for PsbtSighashType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // We accept strings of form: "SIGHASH_ALL" etc.
         //
-        // NB: some of Taproot sighash types are non-standard for pre-Taproot
+        // NB: some of Taproot sighash types are non-standard for pre-taproot
         // inputs. We also do not support SIGHASH_RESERVED in verbatim form
         // ("0xFF" string should be used instead).
-        if let Ok(ty) = s.parse::<TapSighashType>() {
+        if let Ok(ty) = TapSighashType::from_str(s) {
             return Ok(ty.into());
         }
 
@@ -197,22 +187,6 @@ impl From<TapSighashType> for PsbtSighashType {
 }
 
 impl PsbtSighashType {
-    /// Ambiguous `ALL` sighash type, may refer to either [`EcdsaSighashType::All`]
-    /// or [`TapSighashType::All`].
-    ///
-    /// This is equivalent to either `EcdsaSighashType::All.into()` or `TapSighashType::All.into()`.
-    /// For sighash types other than `ALL` use the ECDSA or Taproot sighash type directly.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bitcoin::{EcdsaSighashType, TapSighashType};
-    /// use bitcoin::psbt::PsbtSighashType;
-    /// let ecdsa_sighash_anyone_can_pay: PsbtSighashType = EcdsaSighashType::AllPlusAnyoneCanPay.into();
-    /// let tap_sighash_anyone_can_pay: PsbtSighashType = TapSighashType::AllPlusAnyoneCanPay.into();
-    /// ```
-    pub const ALL: PsbtSighashType = PsbtSighashType { inner: 0x01 };
-
     /// Returns the [`EcdsaSighashType`] if the [`PsbtSighashType`] can be
     /// converted to one.
     pub fn ecdsa_hash_ty(self) -> Result<EcdsaSighashType, NonStandardSighashTypeError> {
@@ -233,16 +207,12 @@ impl PsbtSighashType {
     ///
     /// Allows construction of a non-standard or non-valid sighash flag
     /// ([`EcdsaSighashType`], [`TapSighashType`] respectively).
-    pub fn from_u32(n: u32) -> PsbtSighashType {
-        PsbtSighashType { inner: n }
-    }
+    pub fn from_u32(n: u32) -> PsbtSighashType { PsbtSighashType { inner: n } }
 
     /// Converts [`PsbtSighashType`] to a raw `u32` sighash flag.
     ///
     /// No guarantees are made as to the standardness or validity of the returned value.
-    pub fn to_u32(self) -> u32 {
-        self.inner
-    }
+    pub fn to_u32(self) -> u32 { self.inner }
 }
 
 impl Input {
@@ -320,24 +290,36 @@ impl Input {
                 }
             }
             PSBT_IN_RIPEMD160 => {
-                psbt_insert_hash_pair! {
-                    &mut self.ripemd160_preimages <= raw_key|raw_value|ripemd160::Hash|error::PsbtHash::Ripemd
-                }
+                psbt_insert_hash_pair(
+                    &mut self.ripemd160_preimages,
+                    raw_key,
+                    raw_value,
+                    error::PsbtHash::Ripemd,
+                )?;
             }
             PSBT_IN_SHA256 => {
-                psbt_insert_hash_pair! {
-                    &mut self.sha256_preimages <= raw_key|raw_value|sha256::Hash|error::PsbtHash::Sha256
-                }
+                psbt_insert_hash_pair(
+                    &mut self.sha256_preimages,
+                    raw_key,
+                    raw_value,
+                    error::PsbtHash::Sha256,
+                )?;
             }
             PSBT_IN_HASH160 => {
-                psbt_insert_hash_pair! {
-                    &mut self.hash160_preimages <= raw_key|raw_value|hash160::Hash|error::PsbtHash::Hash160
-                }
+                psbt_insert_hash_pair(
+                    &mut self.hash160_preimages,
+                    raw_key,
+                    raw_value,
+                    error::PsbtHash::Hash160,
+                )?;
             }
             PSBT_IN_HASH256 => {
-                psbt_insert_hash_pair! {
-                    &mut self.hash256_preimages <= raw_key|raw_value|sha256d::Hash|error::PsbtHash::Hash256
-                }
+                psbt_insert_hash_pair(
+                    &mut self.hash256_preimages,
+                    raw_key,
+                    raw_value,
+                    error::PsbtHash::Hash256,
+                )?;
             }
             PSBT_IN_TAP_KEY_SIG => {
                 impl_psbt_insert_pair! {
@@ -512,3 +494,87 @@ impl Map for Input {
 }
 
 impl_psbtmap_ser_de_serialize!(Input);
+
+fn psbt_insert_hash_pair<H>(
+    map: &mut BTreeMap<H, Vec<u8>>,
+    raw_key: raw::Key,
+    raw_value: Vec<u8>,
+    hash_type: error::PsbtHash,
+) -> Result<(), Error>
+where
+    H: hashes::Hash + Deserialize,
+{
+    if raw_key.key.is_empty() {
+        return Err(psbt::Error::InvalidKey(raw_key));
+    }
+    let key_val: H = Deserialize::deserialize(&raw_key.key)?;
+    match map.entry(key_val) {
+        btree_map::Entry::Vacant(empty_key) => {
+            let val: Vec<u8> = Deserialize::deserialize(&raw_value)?;
+            if <H as hashes::Hash>::hash(&val) != key_val {
+                return Err(psbt::Error::InvalidPreimageHashPair {
+                    preimage: val.into_boxed_slice(),
+                    hash: Box::from(key_val.borrow()),
+                    hash_type,
+                });
+            }
+            empty_key.insert(val);
+            Ok(())
+        }
+        btree_map::Entry::Occupied(_) => Err(psbt::Error::DuplicateKey(raw_key)),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn psbt_sighash_type_ecdsa() {
+        for ecdsa in &[
+            EcdsaSighashType::All,
+            EcdsaSighashType::None,
+            EcdsaSighashType::Single,
+            EcdsaSighashType::AllPlusAnyoneCanPay,
+            EcdsaSighashType::NonePlusAnyoneCanPay,
+            EcdsaSighashType::SinglePlusAnyoneCanPay,
+        ] {
+            let sighash = PsbtSighashType::from(*ecdsa);
+            let s = format!("{}", sighash);
+            let back = PsbtSighashType::from_str(&s).unwrap();
+            assert_eq!(back, sighash);
+            assert_eq!(back.ecdsa_hash_ty().unwrap(), *ecdsa);
+        }
+    }
+
+    #[test]
+    fn psbt_sighash_type_taproot() {
+        for tap in &[
+            TapSighashType::Default,
+            TapSighashType::All,
+            TapSighashType::None,
+            TapSighashType::Single,
+            TapSighashType::AllPlusAnyoneCanPay,
+            TapSighashType::NonePlusAnyoneCanPay,
+            TapSighashType::SinglePlusAnyoneCanPay,
+        ] {
+            let sighash = PsbtSighashType::from(*tap);
+            let s = format!("{}", sighash);
+            let back = PsbtSighashType::from_str(&s).unwrap();
+            assert_eq!(back, sighash);
+            assert_eq!(back.taproot_hash_ty().unwrap(), *tap);
+        }
+    }
+
+    #[test]
+    fn psbt_sighash_type_notstd() {
+        let nonstd = 0xdddddddd;
+        let sighash = PsbtSighashType { inner: nonstd };
+        let s = format!("{}", sighash);
+        let back = PsbtSighashType::from_str(&s).unwrap();
+
+        assert_eq!(back, sighash);
+        assert_eq!(back.ecdsa_hash_ty(), Err(NonStandardSighashTypeError(nonstd)));
+        assert_eq!(back.taproot_hash_ty(), Err(InvalidSighashTypeError(nonstd)));
+    }
+}

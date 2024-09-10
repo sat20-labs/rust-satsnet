@@ -4,10 +4,14 @@
 //!
 //! This module defines structures, functions, and traits that are needed to
 //! conform to Bitcoin consensus.
+//!
 
 pub mod encode;
+pub mod params;
 #[cfg(feature = "serde")]
 pub mod serde;
+#[cfg(feature = "bitcoinconsensus")]
+pub mod validation;
 
 use core::fmt;
 
@@ -20,6 +24,13 @@ use crate::consensus;
 #[doc(inline)]
 pub use self::{
     encode::{deserialize, deserialize_partial, serialize, Decodable, Encodable, ReadExt, WriteExt},
+    params::Params,
+};
+
+#[cfg(feature = "bitcoinconsensus")]
+#[doc(inline)]
+pub use self::validation::{
+    verify_script, verify_script_with_flags, verify_transaction, verify_transaction_with_flags,
 };
 
 struct IterReader<E: fmt::Debug, I: Iterator<Item = Result<u8, E>>> {
@@ -42,7 +53,7 @@ impl<E: fmt::Debug, I: Iterator<Item = Result<u8, E>>> IterReader<E, I> {
 
             (Err(consensus::encode::Error::Io(io_error)), Some(de_error)) if io_error.kind() == io::ErrorKind::Other && io_error.get_ref().is_none() => Err(DecodeError::Other(de_error)),
             (Err(consensus_error), None) => Err(DecodeError::Consensus(consensus_error)),
-            (Err(consensus::encode::Error::Io(io_error)), de_error) => panic!("unexpected IO error {:?} returned from {}::consensus_decode(), deserialization error: {:?}", io_error, core::any::type_name::<T>(), de_error),
+            (Err(consensus::encode::Error::Io(io_error)), de_error) => panic!("Unexpected IO error {:?} returned from {}::consensus_decode(), deserialization error: {:?}", io_error, core::any::type_name::<T>(), de_error),
             (Err(consensus_error), Some(de_error)) => panic!("{} should've returned `Other` IO error because of deserialization error {:?} but it returned consensus error {:?} instead", core::any::type_name::<T>(), de_error, consensus_error),
         }
     }

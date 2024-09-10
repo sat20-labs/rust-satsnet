@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: CC0-1.0
 
 //! SHA512 implementation.
+//!
 
-use core::cmp;
 use core::ops::Index;
 use core::slice::SliceIndex;
+use core::{cmp, str};
 
-use crate::HashEngine as _;
+use crate::{FromSliceError, HashEngine as _};
 
 crate::internal_macros::hash_type! {
     512,
@@ -52,11 +53,10 @@ pub struct HashEngine {
     buffer: [u8; BLOCK_SIZE],
 }
 
-impl HashEngine {
-    /// Creates a new SHA512 hash engine.
+impl Default for HashEngine {
     #[rustfmt::skip]
-    pub const fn new() -> Self {
-        Self {
+    fn default() -> Self {
+        HashEngine {
             h: [
                 0x6a09e667f3bcc908, 0xbb67ae8584caa73b, 0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
                 0x510e527fade682d1, 0x9b05688c2b3e6c1f, 0x1f83d9abfb41bd6b, 0x5be0cd19137e2179,
@@ -67,32 +67,10 @@ impl HashEngine {
     }
 }
 
-impl Default for HashEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl HashEngine {
-    #[cfg(not(hashes_fuzz))]
-    pub(crate) fn midstate(&self) -> [u8; 64] {
-        let mut ret = [0; 64];
-        for (val, ret_bytes) in self.h.iter().zip(ret.chunks_exact_mut(8)) {
-            ret_bytes.copy_from_slice(&val.to_be_bytes());
-        }
-        ret
-    }
-
-    #[cfg(hashes_fuzz)]
-    pub(crate) fn midstate(&self) -> [u8; 64] {
-        let mut ret = [0; 64];
-        ret.copy_from_slice(&self.buffer[..64]);
-        ret
-    }
-
-    /// Constructs a hash engine suitable for use constructing a `sha512_256::HashEngine`.
+    /// Constructs a hash engine suitable for use inside the default `sha512_256::HashEngine`.
     #[rustfmt::skip]
-    pub(crate) const fn sha512_256() -> Self {
+    pub(crate) fn sha512_256() -> Self {
         HashEngine {
             h: [
                 0x22312194fc2bf72c, 0x9f555fa3c84c64c2, 0x2393b86b6f53b151, 0x963877195940eabd,
@@ -103,9 +81,9 @@ impl HashEngine {
         }
     }
 
-    /// Constructs a hash engine suitable for constructing `sha384::HashEngine`.
+    /// Constructs a hash engine suitable for use inside the default `sha384::HashEngine`.
     #[rustfmt::skip]
-    pub(crate) const fn sha384() -> Self {
+    pub(crate) fn sha384() -> Self {
         HashEngine {
             h: [
                 0xcbbb9d5dc1059ed8, 0x629a292a367cd507, 0x9159015a3070dd17, 0x152fecd8f70e5939,
@@ -118,37 +96,41 @@ impl HashEngine {
 }
 
 impl crate::HashEngine for HashEngine {
+    type MidState = [u8; 64];
+
+    #[cfg(not(hashes_fuzz))]
+    fn midstate(&self) -> [u8; 64] {
+        let mut ret = [0; 64];
+        for (val, ret_bytes) in self.h.iter().zip(ret.chunks_exact_mut(8)) {
+            ret_bytes.copy_from_slice(&val.to_be_bytes());
+        }
+        ret
+    }
+
+    #[cfg(hashes_fuzz)]
+    fn midstate(&self) -> [u8; 64] {
+        let mut ret = [0; 64];
+        ret.copy_from_slice(&self.buffer[..64]);
+        ret
+    }
+
     const BLOCK_SIZE: usize = 128;
 
-    fn n_bytes_hashed(&self) -> usize {
-        self.length
-    }
+    fn n_bytes_hashed(&self) -> usize { self.length }
 
     engine_input_impl!();
 }
 
 #[allow(non_snake_case)]
-fn Ch(x: u64, y: u64, z: u64) -> u64 {
-    z ^ (x & (y ^ z))
-}
+fn Ch(x: u64, y: u64, z: u64) -> u64 { z ^ (x & (y ^ z)) }
 #[allow(non_snake_case)]
-fn Maj(x: u64, y: u64, z: u64) -> u64 {
-    (x & y) | (z & (x | y))
-}
+fn Maj(x: u64, y: u64, z: u64) -> u64 { (x & y) | (z & (x | y)) }
 #[allow(non_snake_case)]
-fn Sigma0(x: u64) -> u64 {
-    x.rotate_left(36) ^ x.rotate_left(30) ^ x.rotate_left(25)
-}
+fn Sigma0(x: u64) -> u64 { x.rotate_left(36) ^ x.rotate_left(30) ^ x.rotate_left(25) }
 #[allow(non_snake_case)]
-fn Sigma1(x: u64) -> u64 {
-    x.rotate_left(50) ^ x.rotate_left(46) ^ x.rotate_left(23)
-}
-fn sigma0(x: u64) -> u64 {
-    x.rotate_left(63) ^ x.rotate_left(56) ^ (x >> 7)
-}
-fn sigma1(x: u64) -> u64 {
-    x.rotate_left(45) ^ x.rotate_left(3) ^ (x >> 6)
-}
+fn Sigma1(x: u64) -> u64 { x.rotate_left(50) ^ x.rotate_left(46) ^ x.rotate_left(23) }
+fn sigma0(x: u64) -> u64 { x.rotate_left(63) ^ x.rotate_left(56) ^ (x >> 7) }
+fn sigma1(x: u64) -> u64 { x.rotate_left(45) ^ x.rotate_left(3) ^ (x >> 6) }
 
 #[cfg(feature = "small-hash")]
 #[macro_use]
@@ -320,3 +302,4 @@ impl HashEngine {
         self.h[7] = self.h[7].wrapping_add(h);
     }
 }
+

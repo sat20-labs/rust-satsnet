@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: CC0-1.0
 
 //! Macros for serde trait implementations, and supporting code.
+//!
 
 /// Functions used by serde impls of all hashes.
 #[cfg(feature = "serde")]
@@ -29,7 +30,7 @@ pub mod serde_details {
             E: de::Error,
         {
             if let Ok(hex) = str::from_utf8(v) {
-                hex.parse::<Self::Value>().map_err(E::custom)
+                Self::Value::from_str(hex).map_err(E::custom)
             } else {
                 return Err(E::invalid_value(de::Unexpected::Bytes(v), &self));
             }
@@ -39,7 +40,7 @@ pub mod serde_details {
         where
             E: de::Error,
         {
-            v.parse::<Self::Value>().map_err(E::custom)
+            Self::Value::from_str(v).map_err(E::custom)
         }
     }
 

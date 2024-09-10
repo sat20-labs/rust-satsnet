@@ -2,48 +2,38 @@
 
 //! Bitcoin amounts.
 //!
-//! This module mainly introduces the [`Amount`] and [`SignedAmount`] types.
+//! This module mainly introduces the [Amount] and [SignedAmount] types.
 //! We refer to the documentation on the types for more information.
 
 #[cfg(feature = "alloc")]
 use alloc::string::{String, ToString};
 use core::cmp::Ordering;
+#[cfg(feature = "alloc")]
+use core::fmt::Write as _;
 use core::str::FromStr;
 use core::{default, fmt, ops};
 
 #[cfg(feature = "serde")]
 use ::serde::{Deserialize, Serialize};
-#[cfg(feature = "arbitrary")]
-use arbitrary::{Arbitrary, Unstructured};
 use internals::error::InputString;
 use internals::write_err;
 
 /// A set of denominations in which amounts can be expressed.
 ///
-/// # Accepted Denominations
-///
-/// All upper or lower case, excluding SI prefix (c, m, u) which must be lower case.
-/// - Singular: BTC, cBTC, mBTC, uBTC
-/// - Plural or singular: sat, satoshi, bit
-///
-/// # Note
-///
-/// Due to ambiguity between mega and milli we prohibit usage of leading capital 'M'.  It is
-/// more important to protect users from incorrectly using a capital M to mean milli than to
-/// allow Megabitcoin which is not a realistic denomination, and Megasatoshi which is
-/// equivalent to cBTC which is allowed.
-///
 /// # Examples
-///
 /// ```
-/// # use bitcoin_units::Amount;
+/// # use core::str::FromStr;
+/// # use satsnet_units::Amount;
 ///
-/// assert_eq!("1 BTC".parse::<Amount>().unwrap(), Amount::from_sat(100_000_000));
-/// assert_eq!("1 cBTC".parse::<Amount>().unwrap(), Amount::from_sat(1_000_000));
-/// assert_eq!("1 mBTC".parse::<Amount>().unwrap(), Amount::from_sat(100_000));
-/// assert_eq!("1 uBTC".parse::<Amount>().unwrap(), Amount::from_sat(100));
-/// assert_eq!("1 bit".parse::<Amount>().unwrap(), Amount::from_sat(100));
-/// assert_eq!("1 sat".parse::<Amount>().unwrap(), Amount::from_sat(1));
+/// assert_eq!(Amount::from_str("1 BTC").unwrap(), Amount::from_sat(100_000_000));
+/// assert_eq!(Amount::from_str("1 cBTC").unwrap(), Amount::from_sat(1_000_000));
+/// assert_eq!(Amount::from_str("1 mBTC").unwrap(), Amount::from_sat(100_000));
+/// assert_eq!(Amount::from_str("1 uBTC").unwrap(), Amount::from_sat(100));
+/// assert_eq!(Amount::from_str("10 nBTC").unwrap(), Amount::from_sat(1));
+/// assert_eq!(Amount::from_str("10000 pBTC").unwrap(), Amount::from_sat(1));
+/// assert_eq!(Amount::from_str("1 bit").unwrap(), Amount::from_sat(100));
+/// assert_eq!(Amount::from_str("1 sat").unwrap(), Amount::from_sat(1));
+/// assert_eq!(Amount::from_str("1000 msats").unwrap(), Amount::from_sat(1));
 /// ```
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -56,10 +46,16 @@ pub enum Denomination {
     MilliBitcoin,
     /// uBTC
     MicroBitcoin,
+    /// nBTC
+    NanoBitcoin,
+    /// pBTC
+    PicoBitcoin,
     /// bits
     Bit,
     /// satoshi
     Satoshi,
+    /// msat
+    MilliSatoshi,
 }
 
 impl Denomination {
@@ -76,34 +72,43 @@ impl Denomination {
             Denomination::CentiBitcoin => -6,
             Denomination::MilliBitcoin => -5,
             Denomination::MicroBitcoin => -2,
+            Denomination::NanoBitcoin => 1,
+            Denomination::PicoBitcoin => 4,
             Denomination::Bit => -2,
             Denomination::Satoshi => 0,
+            Denomination::MilliSatoshi => 3,
         }
     }
 
-    /// Returns a string representation of this denomination.
+    /// Returns stringly representation of this
     fn as_str(self) -> &'static str {
         match self {
             Denomination::Bitcoin => "BTC",
             Denomination::CentiBitcoin => "cBTC",
             Denomination::MilliBitcoin => "mBTC",
             Denomination::MicroBitcoin => "uBTC",
+            Denomination::NanoBitcoin => "nBTC",
+            Denomination::PicoBitcoin => "pBTC",
             Denomination::Bit => "bits",
             Denomination::Satoshi => "satoshi",
+            Denomination::MilliSatoshi => "msat",
         }
     }
 
-    /// The different `str` forms of denominations that are recognized.
+    /// The different str forms of denominations that are recognized.
     fn forms(s: &str) -> Option<Self> {
         match s {
             "BTC" | "btc" => Some(Denomination::Bitcoin),
             "cBTC" | "cbtc" => Some(Denomination::CentiBitcoin),
             "mBTC" | "mbtc" => Some(Denomination::MilliBitcoin),
             "uBTC" | "ubtc" => Some(Denomination::MicroBitcoin),
+            "nBTC" | "nbtc" => Some(Denomination::NanoBitcoin),
+            "pBTC" | "pbtc" => Some(Denomination::PicoBitcoin),
             "bit" | "bits" | "BIT" | "BITS" => Some(Denomination::Bit),
             "SATOSHI" | "satoshi" | "SATOSHIS" | "satoshis" | "SAT" | "sat" | "SATS" | "sats" => {
                 Some(Denomination::Satoshi)
             }
+            "mSAT" | "msat" | "mSATs" | "msats" => Some(Denomination::MilliSatoshi),
             _ => None,
         }
     }
@@ -111,7 +116,9 @@ impl Denomination {
 
 /// These form are ambigous and could have many meanings.  For example, M could denote Mega or Milli.
 /// If any of these forms are used, an error type PossiblyConfusingDenomination is returned.
-const CONFUSING_FORMS: [&str; 6] = ["MBTC", "Mbtc", "CBTC", "Cbtc", "UBTC", "Ubtc"];
+const CONFUSING_FORMS: [&str; 9] = [
+    "Msat", "Msats", "MSAT", "MSATS", "MSat", "MSats", "MBTC", "Mbtc", "PBTC",
+];
 
 impl fmt::Display for Denomination {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -122,19 +129,20 @@ impl fmt::Display for Denomination {
 impl FromStr for Denomination {
     type Err = ParseDenominationError;
 
-    /// Converts from a `str` to a `Denomination`.
+    /// Convert from a str to Denomination.
     ///
-    /// # Errors
+    /// Any combination of upper and/or lower case, excluding uppercase of SI(m, u, n, p) is considered valid.
+    /// - Singular: BTC, mBTC, uBTC, nBTC, pBTC
+    /// - Plural or singular: sat, satoshi, bit, msat
     ///
-    /// - If the denomination begins with a capital `M` a [`PossiblyConfusingDenominationError`] is
-    ///   returned.
-    ///
-    /// - If an unknown denomination is used, an [`UnknownDenominationError`] is returned.
+    /// Due to ambiguity between mega and milli, pico and peta we prohibit usage of leading capital 'M', 'P'.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use self::ParseDenominationError::*;
 
         if CONFUSING_FORMS.contains(&s) {
-            return Err(PossiblyConfusing(PossiblyConfusingDenominationError(s.into())));
+            return Err(PossiblyConfusing(PossiblyConfusingDenominationError(
+                s.into(),
+            )));
         };
 
         let form = self::Denomination::forms(s);
@@ -299,7 +307,7 @@ impl std::error::Error for ParseAmountError {
     }
 }
 
-/// Error returned when a parsed amount is too big or too small.
+/// Returned when a parsed amount is too big or too small.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct OutOfRangeError {
     is_signed: bool,
@@ -328,7 +336,10 @@ impl OutOfRangeError {
     }
 
     pub(crate) fn too_big(is_signed: bool) -> Self {
-        Self { is_signed, is_greater_than_max: true }
+        Self {
+            is_signed,
+            is_greater_than_max: true,
+        }
     }
 
     pub(crate) fn too_small() -> Self {
@@ -443,7 +454,7 @@ enum MissingDigitsKind {
     OnlyMinusSign,
 }
 
-/// Error returned when the input contains an invalid character.
+/// Returned when the input contains an invalid character.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidCharacterError {
     invalid_char: char,
@@ -506,7 +517,7 @@ impl std::error::Error for ParseDenominationError {
 #[non_exhaustive]
 pub struct MissingDenominationError;
 
-/// Error returned when parsing an unknown denomination.
+/// Parsing error, unknown denomination.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct UnknownDenominationError(InputString);
@@ -524,7 +535,7 @@ impl std::error::Error for UnknownDenominationError {
     }
 }
 
-/// Error returned when parsing a possibly confusing denomination.
+/// Parsing error, possibly confusing denomination.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct PossiblyConfusingDenominationError(InputString);
@@ -555,17 +566,25 @@ fn is_too_precise(s: &str, precision: usize) -> Option<usize> {
             .find(|(_, d)| *d != '0')
             .map(|(i, _)| i)
             .or_else(|| {
-                s[(pos + 1)..].char_indices().find(|(_, d)| *d != '0').map(|(i, _)| i + pos + 1)
+                s[(pos + 1)..]
+                    .char_indices()
+                    .find(|(_, d)| *d != '0')
+                    .map(|(i, _)| i + pos + 1)
             }),
         None if precision >= s.len() => Some(0),
-        None => s.char_indices().rev().take(precision).find(|(_, d)| *d != '0').map(|(i, _)| i),
+        None => s
+            .char_indices()
+            .rev()
+            .take(precision)
+            .find(|(_, d)| *d != '0')
+            .map(|(i, _)| i),
     }
 }
 
 const INPUT_STRING_LEN_LIMIT: usize = 50;
 
-/// Parses a decimal string in the given denomination into a satoshi value and a
-/// [`bool`] indicator for a negative amount.
+/// Parse decimal string in the given denomination into a satoshi value and a
+/// bool indicator for a negative amount.
 fn parse_signed_to_satoshi(
     mut s: &str,
     denom: Denomination,
@@ -685,9 +704,11 @@ internals::impl_from_infallible!(InnerParseError);
 impl InnerParseError {
     fn convert(self, is_signed: bool) -> ParseAmountError {
         match self {
-            Self::Overflow { is_negative } => {
-                OutOfRangeError { is_signed, is_greater_than_max: !is_negative }.into()
+            Self::Overflow { is_negative } => OutOfRangeError {
+                is_signed,
+                is_greater_than_max: !is_negative,
             }
+            .into(),
             Self::TooPrecise(error) => ParseAmountError::TooPrecise(error),
             Self::MissingDigits(error) => ParseAmountError::MissingDigits(error),
             Self::InputTooLarge(len) => ParseAmountError::InputTooLarge(InputTooLargeError { len }),
@@ -765,7 +786,7 @@ fn repeat_char(f: &mut dyn fmt::Write, c: char, count: usize) -> fmt::Result {
 
 /// Format the given satoshi amount in the given denomination.
 fn fmt_satoshi_in(
-    mut satoshi: u64,
+    satoshi: u64,
     negative: bool,
     f: &mut dyn fmt::Write,
     denom: Denomination,
@@ -790,20 +811,6 @@ fn fmt_satoshi_in(
         }
         Ordering::Less => {
             let precision = precision.unsigned_abs();
-            // round the number if needed
-            // rather than fiddling with chars, we just modify satoshi and let the simpler algorithm take over.
-            if let Some(format_precision) = options.precision {
-                if usize::from(precision) > format_precision {
-                    // precision is u8 so in this branch options.precision() < 255 which fits in u32
-                    let rounding_divisor =
-                        10u64.pow(u32::from(precision) - format_precision as u32);
-                    let remainder = satoshi % rounding_divisor;
-                    satoshi -= remainder;
-                    if remainder / (rounding_divisor / 10) >= 5 {
-                        satoshi += rounding_divisor;
-                    }
-                }
-            }
             let divisor = 10u64.pow(precision.into());
             num_before_decimal_point = satoshi / divisor;
             num_after_decimal_point = satoshi % divisor;
@@ -876,7 +883,12 @@ fn fmt_satoshi_in(
         write!(f, ".")?;
     }
     if norm_nb_decimals > 0 {
-        write!(f, "{:0width$}", num_after_decimal_point, width = norm_nb_decimals)?;
+        write!(
+            f,
+            "{:0width$}",
+            num_after_decimal_point,
+            width = norm_nb_decimals
+        )?;
     }
     repeat_char(f, '0', trailing_decimal_zeros)?;
 
@@ -888,18 +900,18 @@ fn fmt_satoshi_in(
     Ok(())
 }
 
-/// An amount.
+/// Amount
 ///
-/// The [`Amount`] type can be used to express Bitcoin amounts that support
+/// The [Amount] type can be used to express Bitcoin amounts that support
 /// arithmetic and conversion to various denominations.
 ///
 ///
 /// Warning!
 ///
-/// This type implements several arithmetic operations from [`core::ops`].
+/// This type implements several arithmetic operations from [core::ops].
 /// To prevent errors due to overflow or underflow when using these operations,
 /// it is advised to instead use the checked arithmetic methods whose names
-/// start with `checked_`.  The operations from [`core::ops`] that [`Amount`]
+/// start with `checked_`.  The operations from [core::ops] that [Amount]
 /// implements will panic when overflow or underflow occurs.  Also note that
 /// since the internal representation of amounts is unsigned, subtracting below
 /// zero is considered an underflow and will cause a panic if you're not using
@@ -925,7 +937,7 @@ impl Amount {
     /// The number of bytes that an amount contributes to the size of a transaction.
     pub const SIZE: usize = 8; // Serialized length of a u64.
 
-    /// Creates an [`Amount`] with satoshi precision and the given number of satoshis.
+    /// Create an [Amount] with satoshi precision and the given number of satoshis.
     pub const fn from_sat(satoshi: u64) -> Amount {
         Amount(satoshi)
     }
@@ -935,30 +947,37 @@ impl Amount {
         self.0
     }
 
-    /// Converts from a value expressing bitcoins to an [`Amount`].
+    /// Convert from a value expressing bitcoins to an [Amount].
     #[cfg(feature = "alloc")]
     pub fn from_btc(btc: f64) -> Result<Amount, ParseAmountError> {
         Amount::from_float_in(btc, Denomination::Bitcoin)
     }
 
-    /// Converts from a value expressing integer values of bitcoins to an [`Amount`]
+    /// Convert from a value expressing integer values of bitcoins to an [Amount]
     /// in const context.
     ///
-    /// # Panics
+    /// ## Panics
     ///
     /// The function panics if the argument multiplied by the number of sats
     /// per bitcoin overflows a u64 type.
     pub const fn from_int_btc(btc: u64) -> Amount {
         match btc.checked_mul(100_000_000) {
             Some(amount) => Amount::from_sat(amount),
-            None => panic!("checked_mul overflowed"),
+            None => {
+                // When MSRV is 1.57+ we can use `panic!()`.
+                #[allow(unconditional_panic)]
+                #[allow(clippy::let_unit_value)]
+                #[allow(clippy::out_of_bounds_indexing)]
+                let _int_overflow_converting_btc_to_sats = [(); 0][1];
+                Amount(0)
+            }
         }
     }
 
-    /// Parses a decimal string as a value in the given denomination.
+    /// Parse a decimal string as a value in the given denomination.
     ///
     /// Note: This only parses the value string.  If you want to parse a value
-    /// with denomination, use [`FromStr`].
+    /// with denomination, use [FromStr].
     pub fn from_str_in(s: &str, denom: Denomination) -> Result<Amount, ParseAmountError> {
         let (negative, satoshi) =
             parse_signed_to_satoshi(s, denom).map_err(|error| error.convert(false))?;
@@ -969,30 +988,29 @@ impl Amount {
     }
 
     /// Parses amounts with denomination suffix like they are produced with
-    /// [`Self::to_string_with_denomination`] or with [`fmt::Display`].
+    /// [Self::to_string_with_denomination] or with [fmt::Display].
     /// If you want to parse only the amount without the denomination,
-    /// use [`Self::from_str_in`].
+    /// use [Self::from_str_in].
     pub fn from_str_with_denomination(s: &str) -> Result<Amount, ParseError> {
         let (amt, denom) = split_amount_and_denomination(s)?;
         Amount::from_str_in(amt, denom).map_err(Into::into)
     }
 
-    /// Expresses this [`Amount`] as a floating-point value in the given denomination.
+    /// Express this [Amount] as a floating-point value in the given denomination.
     ///
     /// Please be aware of the risk of using floating-point numbers.
     #[cfg(feature = "alloc")]
     pub fn to_float_in(self, denom: Denomination) -> f64 {
-        self.to_string_in(denom).parse::<f64>().unwrap()
+        f64::from_str(&self.to_string_in(denom)).unwrap()
     }
 
-    /// Expresses this [`Amount`] as a floating-point value in Bitcoin.
+    /// Express this [`Amount`] as a floating-point value in Bitcoin.
     ///
     /// Please be aware of the risk of using floating-point numbers.
     ///
     /// # Examples
-    ///
     /// ```
-    /// # use bitcoin_units::amount::{Amount, Denomination};
+    /// # use satsnet_units::amount::{Amount, Denomination};
     /// let amount = Amount::from_sat(100_000);
     /// assert_eq!(amount.to_btc(), amount.to_float_in(Denomination::Bitcoin))
     /// ```
@@ -1001,12 +1019,9 @@ impl Amount {
         self.to_float_in(Denomination::Bitcoin)
     }
 
-    /// Converts this [`Amount`] in floating-point notation with a given
+    /// Convert this [Amount] in floating-point notation with a given
     /// denomination.
-    ///
-    /// # Errors
-    ///
-    /// If the amount is too big, too precise or negative.
+    /// Can return error if the amount is too big, too precise or negative.
     ///
     /// Please be aware of the risk of using floating-point numbers.
     #[cfg(feature = "alloc")]
@@ -1019,16 +1034,19 @@ impl Amount {
         Amount::from_str_in(&value.to_string(), denom)
     }
 
-    /// Creates an object that implements [`fmt::Display`] using specified denomination.
+    /// Create an object that implements [`fmt::Display`] using specified denomination.
     pub fn display_in(self, denomination: Denomination) -> Display {
         Display {
             sats_abs: self.to_sat(),
             is_negative: false,
-            style: DisplayStyle::FixedDenomination { denomination, show_denomination: false },
+            style: DisplayStyle::FixedDenomination {
+                denomination,
+                show_denomination: false,
+            },
         }
     }
 
-    /// Creates an object that implements [`fmt::Display`] dynamically selecting denomination.
+    /// Create an object that implements [`fmt::Display`] dynamically selecting denomination.
     ///
     /// This will use BTC for values greater than or equal to 1 BTC and satoshis otherwise. To
     /// avoid confusion the denomination is always shown.
@@ -1040,49 +1058,53 @@ impl Amount {
         }
     }
 
-    /// Formats the value of this [`Amount`] in the given denomination.
+    /// Format the value of this [Amount] in the given denomination.
     ///
     /// Does not include the denomination.
     #[rustfmt::skip]
-    #[deprecated(since = "TBD", note = "Use `display_in()` instead")]
     pub fn fmt_value_in(self, f: &mut dyn fmt::Write, denom: Denomination) -> fmt::Result {
         fmt_satoshi_in(self.to_sat(), false, f, denom, false, FormatOptions::default())
     }
 
-    /// Returns a formatted string of this [`Amount`] in the given denomination.
+    /// Get a string number of this [Amount] in the given denomination.
     ///
     /// Does not include the denomination.
     #[cfg(feature = "alloc")]
     pub fn to_string_in(self, denom: Denomination) -> String {
-        self.display_in(denom).to_string()
+        let mut buf = String::new();
+        self.fmt_value_in(&mut buf, denom).unwrap();
+        buf
     }
 
-    /// Returns a formatted string of this [`Amount`] in the given denomination,
+    /// Get a formatted string of this [Amount] in the given denomination,
     /// suffixed with the abbreviation for the denomination.
     #[cfg(feature = "alloc")]
     pub fn to_string_with_denomination(self, denom: Denomination) -> String {
-        self.display_in(denom).show_denomination().to_string()
+        let mut buf = String::new();
+        self.fmt_value_in(&mut buf, denom).unwrap();
+        write!(buf, " {}", denom).unwrap();
+        buf
     }
 
-    // Some arithmetic that doesn't fit in [`core::ops`] traits.
+    // Some arithmetic that doesn't fit in `core::ops` traits.
 
     /// Checked addition.
     ///
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_add(self, rhs: Amount) -> Option<Amount> {
         self.0.checked_add(rhs.0).map(Amount)
     }
 
     /// Checked subtraction.
     ///
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_sub(self, rhs: Amount) -> Option<Amount> {
         self.0.checked_sub(rhs.0).map(Amount)
     }
 
     /// Checked multiplication.
     ///
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_mul(self, rhs: u64) -> Option<Amount> {
         self.0.checked_mul(rhs).map(Amount)
     }
@@ -1091,55 +1113,39 @@ impl Amount {
     ///
     /// Be aware that integer division loses the remainder if no exact division
     /// can be made.
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_div(self, rhs: u64) -> Option<Amount> {
         self.0.checked_div(rhs).map(Amount)
     }
 
     /// Checked remainder.
     ///
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_rem(self, rhs: u64) -> Option<Amount> {
         self.0.checked_rem(rhs).map(Amount)
     }
 
     /// Unchecked addition.
     ///
-    /// Computes `self + rhs`.
-    ///
-    /// # Panics
-    ///
-    /// On overflow, panics in debug mode, wraps in release mode.
+    /// Computes `self + rhs`.  Panics in debug mode, wraps in release mode.
     pub fn unchecked_add(self, rhs: Amount) -> Amount {
         Self(self.0 + rhs.0)
     }
 
     /// Unchecked subtraction.
     ///
-    /// Computes `self - rhs`.
-    ///
-    /// # Panics
-    ///
-    /// On overflow, panics in debug mode, wraps in release mode.
+    /// Computes `self - rhs`.  Panics in debug mode, wraps in release mode.
     pub fn unchecked_sub(self, rhs: Amount) -> Amount {
         Self(self.0 - rhs.0)
     }
 
-    /// Converts to a signed amount.
+    /// Convert to a signed amount.
     pub fn to_signed(self) -> Result<SignedAmount, OutOfRangeError> {
         if self.to_sat() > SignedAmount::MAX.to_sat() as u64 {
             Err(OutOfRangeError::too_big(true))
         } else {
             Ok(SignedAmount::from_sat(self.to_sat() as i64))
         }
-    }
-}
-
-#[cfg(feature = "arbitrary")]
-impl<'a> Arbitrary<'a> for Amount {
-    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        let a = u64::arbitrary(u)?;
-        Ok(Amount(a))
     }
 }
 
@@ -1159,7 +1165,15 @@ impl fmt::Debug for Amount {
 // Just using Bitcoin denominated string.
 impl fmt::Display for Amount {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.display_in(Denomination::Bitcoin).show_denomination(), f)
+        let satoshis = self.to_sat();
+        let denomination = Denomination::Bitcoin;
+        let mut format_options = FormatOptions::from_formatter(f);
+
+        if f.precision().is_none() && satoshis.rem_euclid(Amount::ONE_BTC.to_sat()) != 0 {
+            format_options.precision = Some(8);
+        }
+
+        fmt_satoshi_in(satoshis, false, f, denomination, true, format_options)
     }
 }
 
@@ -1258,19 +1272,15 @@ impl core::iter::Sum for Amount {
 
 /// A helper/builder that displays amount with specified settings.
 ///
-/// This provides richer interface than [`fmt::Formatter`]:
+/// This provides richer interface than `fmt::Formatter`:
 ///
 /// * Ability to select denomination
 /// * Show or hide denomination
 /// * Dynamically-selected denomination - show in sats if less than 1 BTC.
 ///
-/// However, this can still be combined with [`fmt::Formatter`] options to precisely control zeros,
+/// However this can still be combined with `fmt::Formatter` options to precisely control zeros,
 /// padding, alignment... The formatting works like floats from `core` but note that precision will
 /// **never** be lossy - that means no rounding.
-///
-/// Note: This implementation is currently **unstable**. The only thing that we can promise is that
-/// unless the precision is changed, this will display an accurate, human-readable number, and the
-/// default serialization (one with unmodified [`fmt::Formatter`] options) will round-trip with [`FromStr`]
 ///
 /// See [`Amount::display_in`] and [`Amount::display_dynamic`] on how to construct this.
 #[derive(Debug, Clone)]
@@ -1287,7 +1297,9 @@ impl Display {
     /// Makes subsequent calls to `Display::fmt` display denomination.
     pub fn show_denomination(mut self) -> Self {
         match &mut self.style {
-            DisplayStyle::FixedDenomination { show_denomination, .. } => *show_denomination = true,
+            DisplayStyle::FixedDenomination {
+                show_denomination, ..
+            } => *show_denomination = true,
             // No-op because dynamic denomination is always shown
             DisplayStyle::DynamicDenomination => (),
         }
@@ -1315,22 +1327,25 @@ impl fmt::Display for Display {
 
 #[derive(Clone, Debug)]
 enum DisplayStyle {
-    FixedDenomination { denomination: Denomination, show_denomination: bool },
+    FixedDenomination {
+        denomination: Denomination,
+        show_denomination: bool,
+    },
     DynamicDenomination,
 }
 
-/// A signed amount.
+/// SignedAmount
 ///
-/// The [`SignedAmount`] type can be used to express Bitcoin amounts that support
+/// The [SignedAmount] type can be used to express Bitcoin amounts that support
 /// arithmetic and conversion to various denominations.
 ///
 ///
 /// Warning!
 ///
-/// This type implements several arithmetic operations from [`core::ops`].
+/// This type implements several arithmetic operations from [core::ops].
 /// To prevent errors due to overflow or underflow when using these operations,
 /// it is advised to instead use the checked arithmetic methods whose names
-/// start with `checked_`.  The operations from [`core::ops`] that [`Amount`]
+/// start with `checked_`.  The operations from [core::ops] that [Amount]
 /// implements will panic when overflow or underflow occurs.
 ///
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1350,7 +1365,7 @@ impl SignedAmount {
     /// The maximum value of an amount.
     pub const MAX: SignedAmount = SignedAmount(i64::MAX);
 
-    /// Create an [`SignedAmount`] with satoshi precision and the given number of satoshis.
+    /// Create an [SignedAmount] with satoshi precision and the given number of satoshis.
     pub const fn from_sat(satoshi: i64) -> SignedAmount {
         SignedAmount(satoshi)
     }
@@ -1360,7 +1375,7 @@ impl SignedAmount {
         self.0
     }
 
-    /// Convert from a value expressing bitcoins to an [`SignedAmount`].
+    /// Convert from a value expressing bitcoins to an [SignedAmount].
     #[cfg(feature = "alloc")]
     pub fn from_btc(btc: f64) -> Result<SignedAmount, ParseAmountError> {
         SignedAmount::from_float_in(btc, Denomination::Bitcoin)
@@ -1369,7 +1384,7 @@ impl SignedAmount {
     /// Parse a decimal string as a value in the given denomination.
     ///
     /// Note: This only parses the value string.  If you want to parse a value
-    /// with denomination, use [`FromStr`].
+    /// with denomination, use [FromStr].
     pub fn from_str_in(s: &str, denom: Denomination) -> Result<SignedAmount, ParseAmountError> {
         match parse_signed_to_satoshi(s, denom).map_err(|error| error.convert(true))? {
             // (negative, amount)
@@ -1386,20 +1401,20 @@ impl SignedAmount {
     }
 
     /// Parses amounts with denomination suffix like they are produced with
-    /// [`Self::to_string_with_denomination`] or with [`fmt::Display`].
+    /// [Self::to_string_with_denomination] or with [fmt::Display].
     /// If you want to parse only the amount without the denomination,
-    /// use [`Self::from_str_in`].
+    /// use [Self::from_str_in].
     pub fn from_str_with_denomination(s: &str) -> Result<SignedAmount, ParseError> {
         let (amt, denom) = split_amount_and_denomination(s)?;
         SignedAmount::from_str_in(amt, denom).map_err(Into::into)
     }
 
-    /// Express this [`SignedAmount`] as a floating-point value in the given denomination.
+    /// Express this [SignedAmount] as a floating-point value in the given denomination.
     ///
     /// Please be aware of the risk of using floating-point numbers.
     #[cfg(feature = "alloc")]
     pub fn to_float_in(self, denom: Denomination) -> f64 {
-        self.to_string_in(denom).parse::<f64>().unwrap()
+        f64::from_str(&self.to_string_in(denom)).unwrap()
     }
 
     /// Express this [`SignedAmount`] as a floating-point value in Bitcoin.
@@ -1412,12 +1427,9 @@ impl SignedAmount {
         self.to_float_in(Denomination::Bitcoin)
     }
 
-    /// Convert this [`SignedAmount`] in floating-point notation with a given
+    /// Convert this [SignedAmount] in floating-point notation with a given
     /// denomination.
-    ///
-    /// # Errors
-    ///
-    /// If the amount is too big, too precise or negative.
+    /// Can return error if the amount is too big, too precise or negative.
     ///
     /// Please be aware of the risk of using floating-point numbers.
     #[cfg(feature = "alloc")]
@@ -1435,7 +1447,10 @@ impl SignedAmount {
         Display {
             sats_abs: self.unsigned_abs().to_sat(),
             is_negative: self.is_negative(),
-            style: DisplayStyle::FixedDenomination { denomination, show_denomination: false },
+            style: DisplayStyle::FixedDenomination {
+                denomination,
+                show_denomination: false,
+            },
         }
     }
 
@@ -1451,43 +1466,47 @@ impl SignedAmount {
         }
     }
 
-    /// Format the value of this [`SignedAmount`] in the given denomination.
+    /// Format the value of this [SignedAmount] in the given denomination.
     ///
     /// Does not include the denomination.
     #[rustfmt::skip]
-    #[deprecated(since = "TBD", note = "Use `display_in()` instead")]
     pub fn fmt_value_in(self, f: &mut dyn fmt::Write, denom: Denomination) -> fmt::Result {
         fmt_satoshi_in(self.unsigned_abs().to_sat(), self.is_negative(), f, denom, false, FormatOptions::default())
     }
 
-    /// Get a string number of this [`SignedAmount`] in the given denomination.
+    /// Get a string number of this [SignedAmount] in the given denomination.
     ///
     /// Does not include the denomination.
     #[cfg(feature = "alloc")]
     pub fn to_string_in(self, denom: Denomination) -> String {
-        self.display_in(denom).to_string()
+        let mut buf = String::new();
+        self.fmt_value_in(&mut buf, denom).unwrap();
+        buf
     }
 
-    /// Get a formatted string of this [`SignedAmount`] in the given denomination,
+    /// Get a formatted string of this [SignedAmount] in the given denomination,
     /// suffixed with the abbreviation for the denomination.
     #[cfg(feature = "alloc")]
     pub fn to_string_with_denomination(self, denom: Denomination) -> String {
-        self.display_in(denom).show_denomination().to_string()
+        let mut buf = String::new();
+        self.fmt_value_in(&mut buf, denom).unwrap();
+        write!(buf, " {}", denom).unwrap();
+        buf
     }
 
-    // Some arithmetic that doesn't fit in [`core::ops`] traits.
+    // Some arithmetic that doesn't fit in `core::ops` traits.
 
-    /// Get the absolute value of this [`SignedAmount`].
+    /// Get the absolute value of this [SignedAmount].
     pub fn abs(self) -> SignedAmount {
         SignedAmount(self.0.abs())
     }
 
-    /// Get the absolute value of this [`SignedAmount`] returning [`Amount`].
+    /// Get the absolute value of this [SignedAmount] returning `Amount`.
     pub fn unsigned_abs(self) -> Amount {
         Amount(self.0.unsigned_abs())
     }
 
-    /// Returns a number representing sign of this [`SignedAmount`].
+    /// Returns a number representing sign of this [SignedAmount].
     ///
     /// - `0` if the amount is zero
     /// - `1` if the amount is positive
@@ -1496,94 +1515,72 @@ impl SignedAmount {
         self.0.signum()
     }
 
-    /// Checks if this [`SignedAmount`] is positive.
-    ///
-    /// Returns `true` if this [`SignedAmount`] is positive and `false` if
-    /// this [`SignedAmount`] is zero or negative.
+    /// Returns `true` if this [SignedAmount] is positive and `false` if
+    /// this [SignedAmount] is zero or negative.
     pub fn is_positive(self) -> bool {
         self.0.is_positive()
     }
 
-    /// Checks if this [`SignedAmount`] is negative.
-    ///
-    /// Returns `true` if this [`SignedAmount`] is negative and `false` if
-    /// this [`SignedAmount`] is zero or positive.
+    /// Returns `true` if this [SignedAmount] is negative and `false` if
+    /// this [SignedAmount] is zero or positive.
     pub fn is_negative(self) -> bool {
         self.0.is_negative()
     }
 
-    /// Returns the absolute value of this [`SignedAmount`].
-    ///
-    /// Consider using `unsigned_abs` which is often more practical.
-    ///
-    /// Returns [`None`] if overflow occurred. (`self == MIN`)
+    /// Get the absolute value of this [SignedAmount].
+    /// Returns [None] if overflow occurred. (`self == MIN`)
     pub fn checked_abs(self) -> Option<SignedAmount> {
         self.0.checked_abs().map(SignedAmount)
     }
 
     /// Checked addition.
-    ///
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_add(self, rhs: SignedAmount) -> Option<SignedAmount> {
         self.0.checked_add(rhs.0).map(SignedAmount)
     }
 
     /// Checked subtraction.
-    ///
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_sub(self, rhs: SignedAmount) -> Option<SignedAmount> {
         self.0.checked_sub(rhs.0).map(SignedAmount)
     }
 
     /// Checked multiplication.
-    ///
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_mul(self, rhs: i64) -> Option<SignedAmount> {
         self.0.checked_mul(rhs).map(SignedAmount)
     }
 
     /// Checked integer division.
-    ///
     /// Be aware that integer division loses the remainder if no exact division
     /// can be made.
-    ///
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_div(self, rhs: i64) -> Option<SignedAmount> {
         self.0.checked_div(rhs).map(SignedAmount)
     }
 
     /// Checked remainder.
-    ///
-    /// Returns [`None`] if overflow occurred.
+    /// Returns [None] if overflow occurred.
     pub fn checked_rem(self, rhs: i64) -> Option<SignedAmount> {
         self.0.checked_rem(rhs).map(SignedAmount)
     }
 
     /// Unchecked addition.
     ///
-    /// Computes `self + rhs`.
-    ///
-    /// # Panics
-    ///
-    /// On overflow, panics in debug mode, wraps in release mode.
+    /// Computes `self + rhs`.  Panics in debug mode, wraps in release mode.
     pub fn unchecked_add(self, rhs: SignedAmount) -> SignedAmount {
         Self(self.0 + rhs.0)
     }
 
     /// Unchecked subtraction.
     ///
-    /// Computes `self - rhs`.
-    ///
-    /// # Panics
-    ///
-    /// On overflow, panics in debug mode, wraps in release mode.
+    /// Computes `self - rhs`.  Panics in debug mode, wraps in release mode.
     pub fn unchecked_sub(self, rhs: SignedAmount) -> SignedAmount {
         Self(self.0 - rhs.0)
     }
 
-    /// Subtraction that doesn't allow negative [`SignedAmount`]s.
-    ///
-    /// Returns [`None`] if either [`self`], `rhs` or the result is strictly negative.
+    /// Subtraction that doesn't allow negative [SignedAmount]s.
+    /// Returns [None] if either [self], `rhs` or the result is strictly negative.
     pub fn positive_sub(self, rhs: SignedAmount) -> Option<SignedAmount> {
         if self.is_negative() || rhs.is_negative() || rhs > self {
             None
@@ -1592,7 +1589,7 @@ impl SignedAmount {
         }
     }
 
-    /// Converts to an unsigned amount.
+    /// Convert to an unsigned amount.
     pub fn to_unsigned(self) -> Result<Amount, OutOfRangeError> {
         if self.is_negative() {
             Err(OutOfRangeError::negative())
@@ -1618,7 +1615,8 @@ impl fmt::Debug for SignedAmount {
 // Just using Bitcoin denominated string.
 impl fmt::Display for SignedAmount {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.display_in(Denomination::Bitcoin).show_denomination(), f)
+        self.fmt_value_in(f, Denomination::Bitcoin)?;
+        write!(f, " {}", Denomination::Bitcoin)
     }
 }
 
@@ -1640,7 +1638,8 @@ impl ops::Sub for SignedAmount {
     type Output = SignedAmount;
 
     fn sub(self, rhs: SignedAmount) -> Self::Output {
-        self.checked_sub(rhs).expect("SignedAmount subtraction error")
+        self.checked_sub(rhs)
+            .expect("SignedAmount subtraction error")
     }
 }
 
@@ -1654,7 +1653,8 @@ impl ops::Rem<i64> for SignedAmount {
     type Output = SignedAmount;
 
     fn rem(self, modulus: i64) -> Self {
-        self.checked_rem(modulus).expect("SignedAmount remainder error")
+        self.checked_rem(modulus)
+            .expect("SignedAmount remainder error")
     }
 }
 
@@ -1668,7 +1668,8 @@ impl ops::Mul<i64> for SignedAmount {
     type Output = SignedAmount;
 
     fn mul(self, rhs: i64) -> Self::Output {
-        self.checked_mul(rhs).expect("SignedAmount multiplication error")
+        self.checked_mul(rhs)
+            .expect("SignedAmount multiplication error")
     }
 }
 
@@ -1723,18 +1724,10 @@ impl core::iter::Sum for SignedAmount {
     }
 }
 
-#[cfg(feature = "arbitrary")]
-impl<'a> Arbitrary<'a> for SignedAmount {
-    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        let s = i64::arbitrary(u)?;
-        Ok(SignedAmount(s))
-    }
-}
-
-/// Calculates the sum over the iterator using checked arithmetic.
+/// Calculate the sum over the iterator using checked arithmetic.
 pub trait CheckedSum<R>: private::SumSeal<R> {
-    /// Calculates the sum over the iterator using checked arithmetic. If an over or underflow would
-    /// happen it returns [`None`].
+    /// Calculate the sum over the iterator using checked arithmetic. If an over or underflow would
+    /// happen it returns `None`.
     fn checked_sum(self) -> Option<R>;
 }
 
@@ -1776,18 +1769,17 @@ pub mod serde {
     #![allow(missing_docs)]
 
     //! This module adds serde serialization and deserialization support for Amounts.
-    //!
     //! Since there is not a default way to serialize and deserialize Amounts, multiple
     //! ways are supported and it's up to the user to decide which serialiation to use.
     //! The provided modules can be used as follows:
     //!
     //! ```rust,ignore
     //! use serde::{Serialize, Deserialize};
-    //! use bitcoin_units::Amount;
+    //! use satsnet_units::Amount;
     //!
     //! #[derive(Serialize, Deserialize)]
     //! pub struct HasAmount {
-    //!     #[serde(with = "bitcoin_units::amount::serde::as_btc")]
+    //!     #[serde(with = "satsnet_units::amount::serde::as_btc")]
     //!     pub amount: Amount,
     //! }
     //! ```
@@ -1917,7 +1909,7 @@ pub mod serde {
     pub mod as_sat {
         //! Serialize and deserialize [`Amount`](crate::Amount) as real numbers denominated in satoshi.
         //! Use with `#[serde(with = "amount::serde::as_sat")]`.
-
+        //!
         use serde::{Deserializer, Serializer};
 
         use super::private;
@@ -2057,6 +2049,7 @@ pub mod serde {
 #[cfg(kani)]
 mod verification {
     use std::cmp;
+    use std::convert::TryInto;
 
     use super::*;
 
@@ -2074,11 +2067,14 @@ mod verification {
     // CI it fails, so we need to set it higher.
     #[kani::unwind(4)]
     #[kani::proof]
-    fn u_amount_homomorphic() {
+    fn u_amount_add_homomorphic() {
         let n1 = kani::any::<u64>();
         let n2 = kani::any::<u64>();
         kani::assume(n1.checked_add(n2).is_some()); // assume we don't overflow in the actual test
-        assert_eq!(Amount::from_sat(n1) + Amount::from_sat(n2), Amount::from_sat(n1 + n2));
+        assert_eq!(
+            Amount::from_sat(n1) + Amount::from_sat(n2),
+            Amount::from_sat(n1 + n2)
+        );
 
         let mut amt = Amount::from_sat(n1);
         amt += Amount::from_sat(n2);
@@ -2086,7 +2082,10 @@ mod verification {
 
         let max = cmp::max(n1, n2);
         let min = cmp::min(n1, n2);
-        assert_eq!(Amount::from_sat(max) - Amount::from_sat(min), Amount::from_sat(max - min));
+        assert_eq!(
+            Amount::from_sat(max) - Amount::from_sat(min),
+            Amount::from_sat(max - min)
+        );
 
         let mut amt = Amount::from_sat(max);
         amt -= Amount::from_sat(min);
@@ -2104,7 +2103,7 @@ mod verification {
 
     #[kani::unwind(4)]
     #[kani::proof]
-    fn u_amount_homomorphic_checked() {
+    fn u_amount_add_homomorphic_checked() {
         let n1 = kani::any::<u64>();
         let n2 = kani::any::<u64>();
         assert_eq!(
@@ -2119,7 +2118,7 @@ mod verification {
 
     #[kani::unwind(4)]
     #[kani::proof]
-    fn s_amount_homomorphic() {
+    fn s_amount_add_homomorphic() {
         let n1 = kani::any::<i64>();
         let n2 = kani::any::<i64>();
         kani::assume(n1.checked_add(n2).is_some()); // assume we don't overflow in the actual test
@@ -2145,14 +2144,17 @@ mod verification {
             if n1 >= 0 {
                 Ok(Amount::from_sat(n1.try_into().unwrap()))
             } else {
-                Err(OutOfRangeError { is_signed: false, is_greater_than_max: false })
+                Err(OutOfRangeError {
+                    is_signed: true,
+                    is_greater_than_max: false,
+                })
             },
         );
     }
 
     #[kani::unwind(4)]
     #[kani::proof]
-    fn s_amount_homomorphic_checked() {
+    fn s_amount_add_homomorphic_checked() {
         let n1 = kani::any::<i64>();
         let n2 = kani::any::<i64>();
         assert_eq!(

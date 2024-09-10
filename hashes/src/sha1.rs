@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: CC0-1.0
 
 //! SHA1 implementation.
+//!
 
-use core::cmp;
 use core::ops::Index;
 use core::slice::SliceIndex;
+use core::{cmp, str};
 
-use crate::HashEngine as _;
+use crate::{FromSliceError, HashEngine as _};
 
 crate::internal_macros::hash_type! {
     160,
@@ -43,18 +44,21 @@ pub struct HashEngine {
     length: usize,
 }
 
-impl HashEngine {
-    /// Creates a new SHA1 hash engine.
-    pub const fn new() -> Self {
-        Self {
+impl Default for HashEngine {
+    fn default() -> Self {
+        HashEngine {
             h: [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0],
             length: 0,
             buffer: [0; BLOCK_SIZE],
         }
     }
+}
+
+impl crate::HashEngine for HashEngine {
+    type MidState = [u8; 20];
 
     #[cfg(not(hashes_fuzz))]
-    pub(crate) fn midstate(&self) -> [u8; 20] {
+    fn midstate(&self) -> [u8; 20] {
         let mut ret = [0; 20];
         for (val, ret_bytes) in self.h.iter().zip(ret.chunks_exact_mut(4)) {
             ret_bytes.copy_from_slice(&val.to_be_bytes())
@@ -63,20 +67,12 @@ impl HashEngine {
     }
 
     #[cfg(hashes_fuzz)]
-    pub(crate) fn midstate(&self) -> [u8; 20] {
+    fn midstate(&self) -> [u8; 20] {
         let mut ret = [0; 20];
         ret.copy_from_slice(&self.buffer[..20]);
         ret
     }
-}
 
-impl Default for HashEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl crate::HashEngine for HashEngine {
     const BLOCK_SIZE: usize = 64;
 
     fn n_bytes_hashed(&self) -> usize {
@@ -114,8 +110,12 @@ impl HashEngine {
                 _ => unreachable!(),
             };
 
-            let new_a =
-                a.rotate_left(5).wrapping_add(f).wrapping_add(e).wrapping_add(k).wrapping_add(wi);
+            let new_a = a
+                .rotate_left(5)
+                .wrapping_add(f)
+                .wrapping_add(e)
+                .wrapping_add(k)
+                .wrapping_add(wi);
             e = d;
             d = c;
             c = b.rotate_left(30);

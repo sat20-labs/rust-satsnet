@@ -3,6 +3,7 @@
 //! Internal macros.
 //!
 //! Macros meant to be used inside the Rust Bitcoin library.
+//!
 
 macro_rules! impl_consensus_encoding {
     ($thing:ident, $($field:ident),+) => (
@@ -33,9 +34,7 @@ macro_rules! impl_consensus_encoding {
             fn consensus_decode<R: $crate::io::BufRead + ?Sized>(
                 r: &mut R,
             ) -> core::result::Result<$thing, $crate::consensus::encode::Error> {
-                use internals::ToU64 as _;
-
-                let mut r = r.take($crate::consensus::encode::MAX_VEC_SIZE.to_u64());
+                let mut r = r.take($crate::consensus::encode::MAX_VEC_SIZE as u64);
                 Ok($thing {
                     $($field: $crate::consensus::Decodable::consensus_decode(&mut r)?),+
                 })
@@ -45,17 +44,30 @@ macro_rules! impl_consensus_encoding {
 }
 pub(crate) use impl_consensus_encoding;
 
-/// Implements several string-ish traits for byte-based newtypes.
-///
-/// - `fmt::Display` and `str::FromStr` (using lowercase hex)
-/// - `fmt::LowerHex` and `UpperHex`
-/// - `fmt::Debug` (using `LowerHex`)
-/// - `serde::Serialize` and `Deserialize` (using lowercase hex)
-///
-/// As well as an inherent `from_hex` method.
-macro_rules! impl_array_newtype_stringify {
+/// Implements several traits for byte-based newtypes.
+/// Implements:
+/// - core::fmt::LowerHex
+/// - core::fmt::UpperHex
+/// - core::fmt::Display
+/// - core::str::FromStr
+macro_rules! impl_bytes_newtype {
     ($t:ident, $len:literal) => {
         impl $t {
+            /// Returns a reference the underlying bytes.
+            #[inline]
+            pub fn as_bytes(&self) -> &[u8; $len] { &self.0 }
+
+            /// Returns the underlying bytes.
+            #[inline]
+            pub fn to_bytes(self) -> [u8; $len] {
+                // We rely on `Copy` being implemented for $t so conversion
+                // methods use the correct Rust naming conventions.
+                fn check_copy<T: Copy>() {}
+                check_copy::<$t>();
+
+                self.0
+            }
+
             /// Creates `Self` from a hex string.
             pub fn from_hex(s: &str) -> Result<Self, hex::HexToArrayError> {
                 Ok($t($crate::hex::FromHex::from_hex(s)?))
@@ -174,7 +186,7 @@ macro_rules! impl_array_newtype_stringify {
         }
     };
 }
-pub(crate) use impl_array_newtype_stringify;
+pub(crate) use impl_bytes_newtype;
 
 #[rustfmt::skip]
 macro_rules! impl_hashencode {
@@ -187,6 +199,7 @@ macro_rules! impl_hashencode {
 
         impl $crate::consensus::Decodable for $hashtype {
             fn consensus_decode<R: $crate::io::BufRead + ?Sized>(r: &mut R) -> core::result::Result<Self, $crate::consensus::encode::Error> {
+                use $crate::hashes::Hash;
                 Ok(Self::from_byte_array(<<$hashtype as $crate::hashes::Hash>::Bytes>::consensus_decode(r)?))
             }
         }
@@ -198,14 +211,16 @@ pub(crate) use impl_hashencode;
 macro_rules! impl_asref_push_bytes {
     ($($hashtype:ident),*) => {
         $(
-            impl AsRef<$crate::script::PushBytes> for $hashtype {
-                fn as_ref(&self) -> &$crate::script::PushBytes {
+            impl AsRef<$crate::blockdata::script::PushBytes> for $hashtype {
+                fn as_ref(&self) -> &$crate::blockdata::script::PushBytes {
+                    use $crate::hashes::Hash;
                     self.as_byte_array().into()
                 }
             }
 
-            impl From<$hashtype> for $crate::script::PushBytesBuf {
+            impl From<$hashtype> for $crate::blockdata::script::PushBytesBuf {
                 fn from(hash: $hashtype) -> Self {
+                    use $crate::hashes::Hash;
                     hash.as_byte_array().into()
                 }
             }
@@ -213,68 +228,3 @@ macro_rules! impl_asref_push_bytes {
     };
 }
 pub(crate) use impl_asref_push_bytes;
-
-macro_rules! only_doc_attrs {
-    ({}, {$($fun:tt)*}) => {
-        $($fun)*
-    };
-    ({#[doc = $($doc:tt)*] $($all_attrs:tt)*}, {$($fun:tt)*}) => {
-        $crate::internal_macros::only_doc_attrs!({ $($all_attrs)* }, { #[doc = $($doc)*] $($fun)* });
-    };
-    ({#[doc($($doc:tt)*)] $($all_attrs:tt)*}, {$($fun:tt)*}) => {
-        $crate::internal_macros::only_doc_attrs!({ $($all_attrs)* }, { #[doc($($doc)*)] $($fun)* });
-    };
-    ({#[$($other:tt)*] $($all_attrs:tt)*}, {$($fun:tt)*}) => {
-        $crate::internal_macros::only_doc_attrs!({ $($all_attrs)* }, { $($fun)* });
-    };
-}
-pub(crate) use only_doc_attrs;
-
-macro_rules! only_non_doc_attrs {
-    ({}, {$($fun:tt)*}) => {
-        $($fun)*
-    };
-    ({#[doc = $($doc:tt)*] $($all_attrs:tt)*}, {$($fun:tt)*}) => {
-        $crate::internal_macros::only_doc_attrs!({ $($all_attrs)* }, { #[doc = $($doc)*] $($fun)* });
-    };
-    ({#[doc($($doc:tt)*)] $($all_attrs:tt)*}, {$($fun:tt)*}) => {
-        $crate::internal_macros::only_doc_attrs!({ $($all_attrs)* }, { $($fun)* });
-    };
-    ({#[$($other:tt)*] $($all_attrs:tt)*}, {$($fun:tt)*}) => {
-        $crate::internal_macros::only_doc_attrs!({ $($all_attrs)* }, { #[$(other)*] $($fun)* });
-    };
-}
-pub(crate) use only_non_doc_attrs;
-
-/// Defines an trait `$trait_name` and implements it for `ty`, used to define extension traits.
-macro_rules! define_extension_trait {
-    ($(#[$($trait_attrs:tt)*])* $trait_vis:vis trait $trait_name:ident impl for $ty:ident {
-        $(
-            $(#[$($fn_attrs:tt)*])*
-            fn $fn:ident$(<$($gen:ident: $gent:path),*>)?($($params:tt)*) $( -> $ret:ty )? $body:block
-        )*
-    }) => {
-        $(#[$($trait_attrs)*])* $trait_vis trait $trait_name {
-            $(
-                $crate::internal_macros::only_doc_attrs! {
-                    { $(#[$($fn_attrs)*])* },
-                    {
-                        fn $fn$(<$($gen: $gent),*>)?($($params)*) $( -> $ret )?;
-                    }
-                }
-            )*
-        }
-
-        impl $trait_name for $ty {
-            $(
-                $crate::internal_macros::only_non_doc_attrs! {
-                    { $(#[$($fn_attrs)*])* },
-                    {
-                        fn $fn$(<$($gen: $gent),*>)?($($params)*) $( -> $ret )? $body
-                    }
-                }
-            )*
-        }
-    };
-}
-pub(crate) use define_extension_trait;

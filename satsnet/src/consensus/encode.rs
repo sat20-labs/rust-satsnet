@@ -13,27 +13,27 @@
 //! course, but has some critical differences from the network format e.g.,
 //! scripts come with an opcode decode, hashes are big-endian, numbers are
 //! typically big-endian decimals, etc.)
+//!
 
-use core::{fmt, mem};
+use core::{fmt, mem, u32};
 
-use hashes::{sha256, sha256d, GeneralHash, Hash};
+use hashes::{sha256, sha256d, Hash};
 use hex::error::{InvalidCharError, OddLengthStringError};
-use internals::{write_err, ToU64 as _};
+use internals::write_err;
 use io::{BufRead, Cursor, Read, Write};
 
 use crate::bip152::{PrefilledTransaction, ShortId};
 use crate::bip158::{FilterHash, FilterHeader};
-use crate::block::{self, BlockHash};
+use crate::blockdata::block::{self, BlockHash, TxMerkleNode};
+use crate::blockdata::transaction::{Transaction, TxIn, TxOut};
 use crate::consensus::{DecodeError, IterReader};
-use crate::merkle_tree::TxMerkleNode;
 #[cfg(feature = "std")]
 use crate::p2p::{
     address::{AddrV2Message, Address},
     message_blockdata::Inventory,
 };
-use crate::prelude::{rc, sync, Box, Cow, DisplayHex, String, Vec};
+use crate::prelude::*;
 use crate::taproot::TapLeafHash;
-use crate::transaction::{Transaction, TxIn, TxOut};
 
 /// Encoding error.
 #[derive(Debug)]
@@ -71,12 +71,23 @@ impl fmt::Display for Error {
 
         match *self {
             Io(ref e) => write_err!(f, "IO error"; e),
-            OversizedVectorAllocation { requested: ref r, max: ref m } => {
-                write!(f, "allocation of oversized vector: requested {}, maximum {}", r, m)
-            }
-            InvalidChecksum { expected: ref e, actual: ref a } => {
-                write!(f, "invalid checksum: expected {:x}, actual {:x}", e.as_hex(), a.as_hex())
-            }
+            OversizedVectorAllocation {
+                requested: ref r,
+                max: ref m,
+            } => write!(
+                f,
+                "allocation of oversized vector: requested {}, maximum {}",
+                r, m
+            ),
+            InvalidChecksum {
+                expected: ref e,
+                actual: ref a,
+            } => write!(
+                f,
+                "invalid checksum: expected {:x}, actual {:x}",
+                e.as_hex(),
+                a.as_hex()
+            ),
             NonMinimalVarInt => write!(f, "non-minimal varint"),
             ParseFailed(ref s) => write!(f, "parse failed: {}", s),
             UnsupportedSegwitFlag(ref swflag) => {
@@ -152,7 +163,9 @@ impl From<OddLengthStringError> for FromHexError {
 /// Encodes an object into a vector.
 pub fn serialize<T: Encodable + ?Sized>(data: &T) -> Vec<u8> {
     let mut encoder = Vec::new();
-    let len = data.consensus_encode(&mut encoder).expect("in-memory writers don't error");
+    let len = data
+        .consensus_encode(&mut encoder)
+        .expect("in-memory writers don't error");
     debug_assert_eq!(len, encoder.len());
     encoder
 }
@@ -171,7 +184,9 @@ pub fn deserialize<T: Decodable>(data: &[u8]) -> Result<T, Error> {
     if consumed == data.len() {
         Ok(rv)
     } else {
-        Err(Error::ParseFailed("data not consumed entirely when explicitly deserializing"))
+        Err(Error::ParseFailed(
+            "data not consumed entirely when explicitly deserializing",
+        ))
     }
 }
 
@@ -387,7 +402,7 @@ pub trait Decodable: Sized {
     /// instead.
     #[inline]
     fn consensus_decode<R: BufRead + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        Self::consensus_decode_from_finite_reader(&mut reader.take(MAX_VEC_SIZE.to_u64()))
+        Self::consensus_decode_from_finite_reader(&mut reader.take(MAX_VEC_SIZE as u64))
     }
 }
 
@@ -458,7 +473,7 @@ impl_int_encodable!(i16, read_i16, emit_i16);
 impl_int_encodable!(i32, read_i32, emit_i32);
 impl_int_encodable!(i64, read_i64, emit_i64);
 
-#[allow(clippy::len_without_is_empty)] // VarInt has no concept of 'is_empty'.
+#[allow(clippy::len_without_is_empty)] // VarInt has on concept of 'is_empty'.
 impl VarInt {
     /// Returns the number of bytes this varint contributes to a transaction size.
     ///
@@ -482,7 +497,7 @@ macro_rules! impl_var_int_from {
         $(
             /// Creates a `VarInt` from a `usize` by casting the to a `u64`.
             impl From<$ty> for VarInt {
-                fn from(x: $ty) -> Self { VarInt(x.to_u64()) }
+                fn from(x: $ty) -> Self { VarInt(x as u64) }
             }
         )*
     }
@@ -569,7 +584,7 @@ impl Encodable for String {
     #[inline]
     fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
         let b = self.as_bytes();
-        let vi_len = VarInt(b.len().to_u64()).consensus_encode(w)?;
+        let vi_len = VarInt(b.len() as u64).consensus_encode(w)?;
         w.emit_slice(b)?;
         Ok(vi_len + b.len())
     }
@@ -587,7 +602,7 @@ impl Encodable for Cow<'static, str> {
     #[inline]
     fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
         let b = self.as_bytes();
-        let vi_len = VarInt(b.len().to_u64()).consensus_encode(w)?;
+        let vi_len = VarInt(b.len() as u64).consensus_encode(w)?;
         w.emit_slice(b)?;
         Ok(vi_len + b.len())
     }
@@ -668,7 +683,7 @@ macro_rules! impl_vec {
                 w: &mut W,
             ) -> core::result::Result<usize, io::Error> {
                 let mut len = 0;
-                len += VarInt(self.len().to_u64()).consensus_encode(w)?;
+                len += VarInt(self.len() as u64).consensus_encode(w)?;
                 for c in self.iter() {
                     len += c.consensus_encode(w)?;
                 }
@@ -724,7 +739,7 @@ pub(crate) fn consensus_encode_with_size<W: Write + ?Sized>(
     data: &[u8],
     w: &mut W,
 ) -> Result<usize, io::Error> {
-    let vi_len = VarInt(data.len().to_u64()).consensus_encode(w)?;
+    let vi_len = VarInt(data.len() as u64).consensus_encode(w)?;
     w.emit_slice(data)?;
     Ok(vi_len + data.len())
 }
@@ -771,7 +786,10 @@ impl Decodable for Vec<u8> {
     fn consensus_decode_from_finite_reader<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, Error> {
         let len = VarInt::consensus_decode(r)?.0 as usize;
         // most real-world vec of bytes data, wouldn't be larger than 128KiB
-        let opts = ReadBytesFromFiniteReaderOpts { len, chunk_size: 128 * 1024 };
+        let opts = ReadBytesFromFiniteReaderOpts {
+            len,
+            chunk_size: 128 * 1024,
+        };
         read_bytes_from_finite_reader(r, opts)
     }
 }
@@ -792,7 +810,7 @@ impl Decodable for Box<[u8]> {
 
 /// Does a double-SHA256 on `data` and returns the first 4 bytes.
 fn sha2_checksum(data: &[u8]) -> [u8; 4] {
-    let checksum = <sha256d::Hash as GeneralHash>::hash(data);
+    let checksum = <sha256d::Hash as Hash>::hash(data);
     [checksum[0], checksum[1], checksum[2], checksum[3]]
 }
 
@@ -814,11 +832,17 @@ impl Decodable for CheckedData {
         let len = u32::consensus_decode_from_finite_reader(r)? as usize;
 
         let checksum = <[u8; 4]>::consensus_decode_from_finite_reader(r)?;
-        let opts = ReadBytesFromFiniteReaderOpts { len, chunk_size: MAX_VEC_SIZE };
+        let opts = ReadBytesFromFiniteReaderOpts {
+            len,
+            chunk_size: MAX_VEC_SIZE,
+        };
         let data = read_bytes_from_finite_reader(r, opts)?;
         let expected_checksum = sha2_checksum(&data);
         if expected_checksum != checksum {
-            Err(self::Error::InvalidChecksum { expected: expected_checksum, actual: checksum })
+            Err(self::Error::InvalidChecksum {
+                expected: expected_checksum,
+                actual: checksum,
+            })
         } else {
             Ok(CheckedData { data, checksum })
         }
@@ -844,7 +868,7 @@ impl<T: Encodable> Encodable for rc::Rc<T> {
 }
 
 /// Note: This will fail to compile on old Rust for targets that don't support atomics
-#[cfg(target_has_atomic = "ptr")]
+#[cfg(any(not(rust_v_1_60), target_has_atomic = "ptr"))]
 impl<T: Encodable> Encodable for sync::Arc<T> {
     fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
         (**self).consensus_encode(w)
@@ -893,7 +917,9 @@ impl Encodable for sha256d::Hash {
 
 impl Decodable for sha256d::Hash {
     fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, Error> {
-        Ok(Self::from_byte_array(<<Self as Hash>::Bytes>::consensus_decode(r)?))
+        Ok(Self::from_byte_array(
+            <<Self as Hash>::Bytes>::consensus_decode(r)?,
+        ))
     }
 }
 
@@ -905,7 +931,9 @@ impl Encodable for sha256::Hash {
 
 impl Decodable for sha256::Hash {
     fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, Error> {
-        Ok(Self::from_byte_array(<<Self as Hash>::Bytes>::consensus_decode(r)?))
+        Ok(Self::from_byte_array(
+            <<Self as Hash>::Bytes>::consensus_decode(r)?,
+        ))
     }
 }
 
@@ -917,6 +945,8 @@ impl Encodable for TapLeafHash {
 
 impl Decodable for TapLeafHash {
     fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, Error> {
-        Ok(Self::from_byte_array(<<Self as Hash>::Bytes>::consensus_decode(r)?))
+        Ok(Self::from_byte_array(
+            <<Self as Hash>::Bytes>::consensus_decode(r)?,
+        ))
     }
 }

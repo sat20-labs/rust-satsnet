@@ -8,13 +8,11 @@ use core::str::FromStr;
 use core::{fmt, iter};
 
 use hex::FromHex;
-use internals::{impl_to_hex_from_lower_hex, write_err};
+use internals::write_err;
 use io::Write;
 
-use crate::prelude::{DisplayHex, Vec};
+use crate::prelude::*;
 use crate::script::PushBytes;
-#[cfg(doc)]
-use crate::script::ScriptBufExt as _;
 use crate::sighash::{EcdsaSighashType, NonStandardSighashTypeError};
 
 const MAX_SIG_LEN: usize = 73;
@@ -22,6 +20,7 @@ const MAX_SIG_LEN: usize = 73;
 /// An ECDSA signature with the corresponding hash type.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
 pub struct Signature {
     /// The underlying ECDSA Signature.
     pub signature: secp256k1::ecdsa::Signature,
@@ -32,16 +31,21 @@ pub struct Signature {
 impl Signature {
     /// Constructs an ECDSA Bitcoin signature for [`EcdsaSighashType::All`].
     pub fn sighash_all(signature: secp256k1::ecdsa::Signature) -> Signature {
-        Signature { signature, sighash_type: EcdsaSighashType::All }
+        Signature {
+            signature,
+            sighash_type: EcdsaSighashType::All,
+        }
     }
 
     /// Deserializes from slice following the standardness rules for [`EcdsaSighashType`].
-    pub fn from_slice(sl: &[u8]) -> Result<Self, DecodeError> {
-        let (sighash_type, sig) = sl.split_last().ok_or(DecodeError::EmptySignature)?;
+    pub fn from_slice(sl: &[u8]) -> Result<Self, Error> {
+        let (sighash_type, sig) = sl.split_last().ok_or(Error::EmptySignature)?;
         let sighash_type = EcdsaSighashType::from_standard(*sighash_type as u32)?;
-        let signature =
-            secp256k1::ecdsa::Signature::from_der(sig).map_err(DecodeError::Secp256k1)?;
-        Ok(Signature { signature, sighash_type })
+        let signature = secp256k1::ecdsa::Signature::from_der(sig).map_err(Error::Secp256k1)?;
+        Ok(Signature {
+            signature,
+            sighash_type,
+        })
     }
 
     /// Serializes an ECDSA signature (inner secp256k1 signature in DER format).
@@ -52,26 +56,23 @@ impl Signature {
         let signature = self.signature.serialize_der();
         buf[..signature.len()].copy_from_slice(&signature);
         buf[signature.len()] = self.sighash_type as u8;
-        SerializedSignature { data: buf, len: signature.len() + 1 }
+        SerializedSignature {
+            data: buf,
+            len: signature.len() + 1,
+        }
     }
 
     /// Serializes an ECDSA signature (inner secp256k1 signature in DER format) into `Vec`.
     ///
     /// Note: this performs an extra heap allocation, you might prefer the
     /// [`serialize`](Self::serialize) method instead.
-    pub fn to_bytes(self) -> Vec<u8> {
+    pub fn to_vec(self) -> Vec<u8> {
         self.signature
             .serialize_der()
             .iter()
             .copied()
             .chain(iter::once(self.sighash_type as u8))
             .collect()
-    }
-
-    /// Serializes an ECDSA signature (inner secp256k1 signature in DER format) into `Vec`.
-    #[deprecated(since = "TBD", note = "Use to_bytes instead")]
-    pub fn to_vec(self) -> Vec<u8> {
-        self.to_bytes()
     }
 
     /// Serializes an ECDSA signature (inner secp256k1 signature in DER format) to a `writer`.
@@ -90,11 +91,15 @@ impl fmt::Display for Signature {
 }
 
 impl FromStr for Signature {
-    type Err = ParseSignatureError;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes = Vec::from_hex(s)?;
-        Ok(Self::from_slice(&bytes)?)
+        let (sighash_byte, signature) = bytes.split_last().ok_or(Error::EmptySignature)?;
+        Ok(Signature {
+            signature: secp256k1::ecdsa::Signature::from_der(signature)?,
+            sighash_type: EcdsaSighashType::from_standard(*sighash_byte as u32)?,
+        })
     }
 }
 
@@ -196,8 +201,6 @@ impl fmt::LowerHex for SerializedSignature {
         fmt::LowerHex::fmt(&(**self).as_hex(), f)
     }
 }
-impl_to_hex_from_lower_hex!(SerializedSignature, |signature: &SerializedSignature| signature.len
-    * 2);
 
 impl fmt::UpperHex for SerializedSignature {
     #[inline]
@@ -231,10 +234,12 @@ impl<'a> IntoIterator for &'a SerializedSignature {
     }
 }
 
-/// Error encountered while parsing an ECDSA signature from a byte slice.
+/// An ECDSA signature-related error.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum DecodeError {
+pub enum Error {
+    /// Hex decoding error.
+    Hex(hex::HexToBytesError),
     /// Non-standard sighash type.
     SighashType(NonStandardSighashTypeError),
     /// Signature was empty.
@@ -243,13 +248,14 @@ pub enum DecodeError {
     Secp256k1(secp256k1::Error),
 }
 
-internals::impl_from_infallible!(DecodeError);
+internals::impl_from_infallible!(Error);
 
-impl fmt::Display for DecodeError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use DecodeError::*;
+        use Error::*;
 
         match *self {
+            Hex(ref e) => write_err!(f, "signature hex decoding error"; e),
             SighashType(ref e) => write_err!(f, "non-standard signature hash type"; e),
             EmptySignature => write!(f, "empty ECDSA signature"),
             Secp256k1(ref e) => write_err!(f, "secp256k1"; e),
@@ -258,11 +264,12 @@ impl fmt::Display for DecodeError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for DecodeError {
+impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use DecodeError::*;
+        use Error::*;
 
         match *self {
+            Hex(ref e) => Some(e),
             Secp256k1(ref e) => Some(e),
             SighashType(ref e) => Some(e),
             EmptySignature => None,
@@ -270,61 +277,20 @@ impl std::error::Error for DecodeError {
     }
 }
 
-impl From<secp256k1::Error> for DecodeError {
+impl From<secp256k1::Error> for Error {
     fn from(e: secp256k1::Error) -> Self {
         Self::Secp256k1(e)
     }
 }
 
-impl From<NonStandardSighashTypeError> for DecodeError {
+impl From<NonStandardSighashTypeError> for Error {
     fn from(e: NonStandardSighashTypeError) -> Self {
         Self::SighashType(e)
     }
 }
 
-/// Error encountered while parsing an ECDSA signature from a string.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ParseSignatureError {
-    /// Hex string decoding error.
-    Hex(hex::HexToBytesError),
-    /// Signature byte slice decoding error.
-    Decode(DecodeError),
-}
-
-internals::impl_from_infallible!(ParseSignatureError);
-
-impl fmt::Display for ParseSignatureError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use ParseSignatureError::*;
-
-        match *self {
-            Hex(ref e) => write_err!(f, "signature hex decoding error"; e),
-            Decode(ref e) => write_err!(f, "signature byte slice decoding error"; e),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for ParseSignatureError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use ParseSignatureError::*;
-
-        match *self {
-            Hex(ref e) => Some(e),
-            Decode(ref e) => Some(e),
-        }
-    }
-}
-
-impl From<hex::HexToBytesError> for ParseSignatureError {
+impl From<hex::HexToBytesError> for Error {
     fn from(e: hex::HexToBytesError) -> Self {
         Self::Hex(e)
-    }
-}
-
-impl From<DecodeError> for ParseSignatureError {
-    fn from(e: DecodeError) -> Self {
-        Self::Decode(e)
     }
 }
