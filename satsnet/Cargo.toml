@@ -1,6 +1,7 @@
 [package]
 name = "satsnet"
 version = "0.32.0-rc1"
+license = "CC0-1.0"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 repository = "https://github.com/sat20-labs/rust-satsnet/"
 description = "General purpose library for using and interoperating with satsnet."
