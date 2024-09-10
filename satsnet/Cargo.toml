@@ -36,7 +36,7 @@ secp-recovery = ["secp256k1/recovery"]
 bitcoinconsensus-std = ["bitcoinconsensus/std", "std"]
 
 [dependencies]
-base58 = { package = "satsnet-base58ck", version = "0.1.0", default-features = false }
+base58 = { package = "satsnet-base58ck", version = "0.1.1", default-features = false }
 bech32 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 hashes = { package = "satsnet_hashes", version = "0.14.0", default-features = false, features = [
     "alloc",
