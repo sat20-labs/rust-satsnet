@@ -2,7 +2,7 @@
 members = [
     "addresses",
     "base58",
-    "bitcoin",
+    "satsnet",
     "hashes",
     "internals",
     "io",
@@ -17,8 +17,8 @@ path = "addresses"
 [patch.crates-io.satsnet-base58ck]
 path = "base58"
 
-[patch.crates-io.bitcoin]
-path = "bitcoin"
+[patch.crates-io.satsnet]
+path = "satsnet"
 
 [patch.crates-io.satsnet_hashes]
 path = "hashes"

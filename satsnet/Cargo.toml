@@ -1,5 +1,5 @@
 [package]
-name = "bitcoin"
+name = "satsnet"
 version = "0.32.0-rc1"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 repository = "https://github.com/sat20-labs/rust-satsnet/"
