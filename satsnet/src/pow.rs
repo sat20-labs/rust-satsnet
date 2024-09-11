@@ -182,6 +182,11 @@ impl Target {
     // https://github.com/bitcoin/bitcoin/blob/8105bce5b384c72cf08b25b7c5343622754e7337/src/kernel/chainparams.cpp#L348
     pub const MAX_ATTAINABLE_SIGNET: Self = Target(U256(0x0377_ae00 << 80, 0));
 
+    /// The proof of work limit on testnet4.
+    // Taken from Bitcoin Core but had lossy conversion to/from compact form.
+    // https://github.com/bitcoin/bitcoin/blob/88f0419c1ab1e5f3ccf425435e530d8ceb72c7f1/src/kernel/chainparams.cpp#L308
+    pub const MAX_ATTAINABLE_TESTNET4: Self = Target(U256(0xFFFF_u128 << (208 - 128), 0));
+
     /// Computes the [`Target`] value from a compact representation.
     ///
     /// ref: <https://developer.bitcoin.org/reference/block_chain.html#target-nbits>

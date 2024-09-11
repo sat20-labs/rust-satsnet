@@ -38,9 +38,9 @@ pub const MAX_BLOCK_SIGOPS_COST: i64 = 80_000;
 pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00
 /// Mainnet (bitcoin) script address prefix.
 pub const SCRIPT_ADDRESS_PREFIX_MAIN: u8 = 5; // 0x05
-/// Test (tesnet, signet, regtest) pubkey address prefix.
+/// Test (tesnet, signet, regtest, testnet4) pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_TEST: u8 = 111; // 0x6f
-/// Test (tesnet, signet, regtest) script address prefix.
+/// Test (tesnet, signet, regtest, testnet4) script address prefix.
 pub const SCRIPT_ADDRESS_PREFIX_TEST: u8 = 196; // 0xc4
 /// The maximum allowed script size.
 pub const MAX_SCRIPT_ELEMENT_SIZE: usize = 520;
@@ -139,6 +139,17 @@ pub fn genesis_block(params: impl AsRef<Params>) -> Block {
             },
             txdata,
         },
+        Network::Testnet4 => Block {
+            header: block::Header {
+                version: block::Version::ONE,
+                prev_blockhash: Hash::all_zeros(),
+                merkle_root,
+                time: 1714777860,
+                bits: CompactTarget::from_consensus(0x1d00ffff),
+                nonce: 393743547,
+            },
+            txdata,
+        },
     }
 }
 
@@ -170,14 +181,26 @@ impl ChainHash {
         6, 34, 110, 70, 17, 26, 11, 89, 202, 175, 18, 96, 67, 235, 91, 191, 40, 195, 79, 58, 94,
         51, 42, 31, 199, 178, 183, 60, 241, 136, 145, 15,
     ]);
-
+    /// `ChainHash` for testnet4 bitcoin.
+    /// 00 00 00 00 da 84 f2 ba fb bc 53 de e2 5a 72 ae 50 7f f4 91 4b 86 7c 56 5b e3 50 b0 da 8b f0 43
+    pub const TESTNET4: Self = Self([
+        0x43, 0xf0, 0x8b, 0xda, 0xb0, 0x50, 0xe3, 0x5b, 0x56, 0x7c, 0x86, 0x4b, 0x91, 0xf4, 0x7f,
+        0x50, 0xae, 0x72, 0x5a, 0xe2, 0xde, 0x53, 0xbc, 0xfb, 0xba, 0xf2, 0x84, 0xda, 0x00, 0x00,
+        0x00, 0x00,
+    ]);
     /// Returns the hash of the `network` genesis block for use as a chain hash.
     ///
     /// See [BOLT 0](https://github.com/lightning/bolts/blob/ffeece3dab1c52efdb9b53ae476539320fa44938/00-introduction.md#chain_hash)
     /// for specification.
     pub fn using_genesis_block(params: impl AsRef<Params>) -> Self {
         let network = params.as_ref().network;
-        let hashes = [Self::BITCOIN, Self::TESTNET, Self::SIGNET, Self::REGTEST];
+        let hashes = [
+            Self::BITCOIN,
+            Self::TESTNET,
+            Self::SIGNET,
+            Self::REGTEST,
+            Self::TESTNET4,
+        ];
         hashes[network as usize]
     }
 
@@ -186,7 +209,13 @@ impl ChainHash {
     /// See [BOLT 0](https://github.com/lightning/bolts/blob/ffeece3dab1c52efdb9b53ae476539320fa44938/00-introduction.md#chain_hash)
     /// for specification.
     pub const fn using_genesis_block_const(network: Network) -> Self {
-        let hashes = [Self::BITCOIN, Self::TESTNET, Self::SIGNET, Self::REGTEST];
+        let hashes = [
+            Self::BITCOIN,
+            Self::TESTNET,
+            Self::SIGNET,
+            Self::REGTEST,
+            Self::TESTNET4,
+        ];
         hashes[network as usize]
     }
 

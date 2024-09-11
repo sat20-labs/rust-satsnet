@@ -69,6 +69,8 @@ pub static TESTNET: Params = Params::TESTNET;
 pub static SIGNET: Params = Params::SIGNET;
 /// The regtest parameters.
 pub static REGTEST: Params = Params::REGTEST;
+/// The testnet4 parameters.
+pub static TESTNET4: Params = Params::TESTNET4;
 
 #[allow(deprecated)] // For `pow_limit`.
 impl Params {
@@ -143,6 +145,23 @@ impl Params {
         no_pow_retargeting: true,
     };
 
+    /// The testnet4 parameters.
+    pub const TESTNET4: Params = Params {
+        network: Network::Testnet4,
+        bip16_time: 1333238400, // Apr 1 2012
+        bip34_height: 1,
+        bip65_height: 1,
+        bip66_height: 1,                        // used only in rpc tests
+        rule_change_activation_threshold: 1512, // 75%
+        miner_confirmation_window: 2016,
+        pow_limit: Target::MAX_ATTAINABLE_TESTNET4,
+        max_attainable_target: Target::MAX_ATTAINABLE_TESTNET4,
+        pow_target_spacing: 10 * 60,            // 10 minutes.
+        pow_target_timespan: 14 * 24 * 60 * 60, // 2 weeks.
+        allow_min_difficulty_blocks: true,
+        no_pow_retargeting: false,
+    };
+
     /// Creates parameters set for the given network.    /// Creates parameters set for the given network.
     pub const fn new(network: Network) -> Self {
         match network {
@@ -150,6 +169,7 @@ impl Params {
             Network::Testnet => Params::TESTNET,
             Network::Signet => Params::SIGNET,
             Network::Regtest => Params::REGTEST,
+            Network::Testnet4 => Params::TESTNET4,
         }
     }
 
@@ -196,6 +216,7 @@ impl AsRef<Params> for Network {
             Network::Testnet => &TESTNET,
             Network::Signet => &SIGNET,
             Network::Regtest => &REGTEST,
+            Network::Testnet4 => &TESTNET4,
         }
     }
 }

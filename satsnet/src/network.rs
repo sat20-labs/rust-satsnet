@@ -41,7 +41,7 @@ pub enum NetworkKind {
 }
 
 // We explicitly do not provide `is_testnet`, using `!network.is_mainnet()` is less
-// ambiguous due to confusion caused by signet/testnet/regtest.
+// ambiguous due to confusion caused by signet/testnet/regtest/testnet4.
 impl NetworkKind {
     /// Returns true if this is real mainnet bitcoin.
     pub fn is_mainnet(&self) -> bool {
@@ -55,7 +55,7 @@ impl From<Network> for NetworkKind {
 
         match n {
             Bitcoin => NetworkKind::Main,
-            Testnet | Signet | Regtest => NetworkKind::Test,
+            Testnet | Signet | Regtest | Testnet4 => NetworkKind::Test,
         }
     }
 }
@@ -75,6 +75,8 @@ pub enum Network {
     Signet,
     /// Bitcoin's regtest network.
     Regtest,
+    /// Bitcoin's testnet4 network.
+    Testnet4,
 }
 
 impl Network {
@@ -116,7 +118,7 @@ impl Network {
     /// Chain selection options:
     ///
     /// -chain=<chain>
-    /// Use the chain <chain> (default: main). Allowed values: main, test, signet, regtest
+    /// Use the chain <chain> (default: main). Allowed values: main, test, signet, regtest, testnet4
     /// ```
     pub fn to_core_arg(self) -> &'static str {
         match self {
@@ -124,6 +126,7 @@ impl Network {
             Network::Testnet => "test",
             Network::Signet => "signet",
             Network::Regtest => "regtest",
+            Network::Testnet4 => "testnet4",
         }
     }
 
@@ -134,7 +137,7 @@ impl Network {
     /// Chain selection options:
     ///
     /// -chain=<chain>
-    /// Use the chain <chain> (default: main). Allowed values: main, test, signet, regtest
+    /// Use the chain <chain> (default: main). Allowed values: main, test, signet, regtest, testnet4
     /// ```
     pub fn from_core_arg(core_arg: &str) -> Result<Self, ParseNetworkError> {
         use Network::*;
@@ -144,6 +147,7 @@ impl Network {
             "test" => Testnet,
             "signet" => Signet,
             "regtest" => Regtest,
+            "testnet4" => Testnet4,
             _ => return Err(ParseNetworkError(core_arg.to_owned())),
         };
         Ok(network)
@@ -180,11 +184,12 @@ impl Network {
 
     /// Returns the associated network parameters.
     pub const fn params(self) -> &'static Params {
-        const PARAMS: [Params; 4] = [
+        const PARAMS: [Params; 5] = [
             Params::new(Network::Bitcoin),
             Params::new(Network::Testnet),
             Params::new(Network::Signet),
             Params::new(Network::Regtest),
+            Params::new(Network::Testnet4),
         ];
         &PARAMS[self as usize]
     }
@@ -217,7 +222,7 @@ pub mod as_core_arg {
                 Network::from_core_arg(s).map_err(|_| {
                     E::invalid_value(
                         serde::de::Unexpected::Str(s),
-                        &"bitcoin network encoded as a string (either main, test, signet or regtest)",
+                        &"bitcoin network encoded as a string (either main, test, signet, regtest or testnet4)",
                     )
                 })
             }
@@ -225,7 +230,7 @@ pub mod as_core_arg {
             fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
                 write!(
                     formatter,
-                    "bitcoin network encoded as a string (either main, test, signet or regtest)"
+                    "bitcoin network encoded as a string (either main, test, signet, regtest or testnet4)"
                 )
             }
         }
@@ -264,6 +269,7 @@ impl FromStr for Network {
             "testnet" => Testnet,
             "signet" => Signet,
             "regtest" => Regtest,
+            "testnet4" => Testnet4,
             _ => return Err(ParseNetworkError(s.to_owned())),
         };
         Ok(network)
@@ -279,6 +285,7 @@ impl fmt::Display for Network {
             Testnet => "testnet",
             Signet => "signet",
             Regtest => "regtest",
+            Testnet4 => "testnet4",
         };
         write!(f, "{}", s)
     }
@@ -312,6 +319,7 @@ impl TryFrom<ChainHash> for Network {
             ChainHash::TESTNET => Ok(Network::Testnet),
             ChainHash::SIGNET => Ok(Network::Signet),
             ChainHash::REGTEST => Ok(Network::Regtest),
+            ChainHash::TESTNET4 => Ok(Network::Testnet4),
             _ => Err(UnknownChainHashError(chain_hash)),
         }
     }
