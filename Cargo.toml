@@ -1,6 +1,6 @@
 [package]
 name = "satsnet"
-version = "0.28.2-mempool-electrs"
+version = "0.28.3-mempool-electrs"
 authors = ["Andrew Poelstra <apoelstra@wpsoftware.net>"]
 license = "CC0-1.0"
 homepage = "https://github.com/rust-bitcoin/rust-bitcoin/"

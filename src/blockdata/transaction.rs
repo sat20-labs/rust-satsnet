@@ -643,7 +643,28 @@ impl Transaction {
     }
 }
 
-impl_consensus_encoding!(TxOut, value, sats_ranges, script_pubkey);
+impl Encodable for TxOut {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
+        let mut len = 0;
+        len += self.value.consensus_encode(&mut s)?;
+        len += self.sats_ranges.consensus_encode(&mut s)?;
+        len += self.script_pubkey.consensus_encode(s)?;
+        Ok(len)
+    }
+}
+
+impl Decodable for TxOut {
+    fn consensus_decode<D: io::Read>(d: D) -> Result<Self, encode::Error> {
+        let mut d = d.take(MAX_VEC_SIZE as u64);
+        let tx_out = TxOut {
+            value: Decodable::consensus_decode(&mut d)?,
+            sats_ranges: Decodable::consensus_decode(&mut d)?,
+            script_pubkey: Decodable::consensus_decode(d)?,
+        };
+        Ok(tx_out)
+    }
+}
+// impl_consensus_encoding!(TxOut, value, sats_ranges, script_pubkey);
 
 impl Encodable for OutPoint {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {

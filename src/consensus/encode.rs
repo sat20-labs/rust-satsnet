@@ -580,11 +580,39 @@ impl_vec!(FilterHeader);
 impl_vec!(TxMerkleNode);
 impl_vec!(Transaction);
 impl_vec!(TxOut);
-impl_vec!(SatsRange);
+// impl_vec!(SatsRange);
 impl_vec!(TxIn);
 impl_vec!(Vec<u8>);
 impl_vec!(u64);
 impl_vec!(TapLeafHash);
+
+impl Encodable for Vec<SatsRange> {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
+        let mut len = 0;
+        len += VarInt(self.len() as u64).consensus_encode(&mut s)?;
+        for c in self.iter() {
+            len += c.consensus_encode(&mut s)?;
+        }
+        Ok(len)
+    }
+}
+
+impl Decodable for Vec<SatsRange> {
+    fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, Error> {
+        let len = VarInt::consensus_decode(&mut d)?.0;
+        let byte_size = (len as usize)
+            .checked_mul(mem::size_of::<SatsRange>())
+            .ok_or(Error::ParseFailed("Invalid length"))?;
+        if byte_size > MAX_VEC_SIZE {
+            return Err(Error::OversizedVectorAllocation { requested: byte_size, max: MAX_VEC_SIZE })
+        }
+        let mut ret = Vec::with_capacity(len as usize);
+        for _ in 0..len {
+            ret.push(Decodable::consensus_decode(&mut d)?);
+        }
+        Ok(ret)
+    }
+}
 
 #[cfg(feature = "std")] impl_vec!(Inventory);
 #[cfg(feature = "std")] impl_vec!((u32, Address));
