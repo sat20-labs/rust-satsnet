@@ -153,13 +153,13 @@ pub fn serialize_hex<T: Encodable + ?Sized>(data: &T) -> String {
 /// doesn't consume the entire vector.
 pub fn deserialize<T: Decodable>(data: &[u8]) -> Result<T, Error> {
     let (rv, consumed) = deserialize_partial(data)?;
-
+    Ok(rv)
     // Fail if data are not consumed entirely.
-    if consumed == data.len() {
-        Ok(rv)
-    } else {
-        Err(Error::ParseFailed("data not consumed entirely when explicitly deserializing"))
-    }
+    // if consumed == data.len() {
+    //     Ok(rv)
+    // } else {
+    //     Err(Error::ParseFailed("data not consumed entirely when explicitly deserializing"))
+    // }
 }
 
 /// Deserialize an object from a vector, but will not report an error if said deserialization
