@@ -607,6 +607,7 @@ impl Decodable for Vec<SatsRange> {
             return Err(Error::OversizedVectorAllocation { requested: byte_size, max: MAX_VEC_SIZE })
         }
         let mut ret = Vec::with_capacity(len as usize);
+        let mut d = d.take(MAX_VEC_SIZE as u64);
         for _ in 0..len {
             ret.push(Decodable::consensus_decode(&mut d)?);
         }
