@@ -233,20 +233,21 @@ impl Encodable for SatsRange {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
         let mut len = 0;
         len += self.start.consensus_encode(&mut s)?;
-        len += self.size.consensus_encode(s)?;
+        len += self.size.consensus_encode(&mut s)?;
         Ok(len)
     }
 }
 
 impl Decodable for SatsRange {
-    fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, encode::Error> {
-        Ok(SatsRange {
+    fn consensus_decode<D: io::Read>(d: D) -> Result<Self, encode::Error> {
+        let mut d: io::Take<D> = d.take(MAX_VEC_SIZE as u64);
+        let sats_range = SatsRange {
             start: Decodable::consensus_decode(&mut d)?,
             size: Decodable::consensus_decode(d)?,
-        })
+        };
+        Ok(sats_range)
     }
 }
-
 
 /// A transaction output, which defines new coins to be created from old ones.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -655,7 +656,7 @@ impl Encodable for TxOut {
 
 impl Decodable for TxOut {
     fn consensus_decode<D: io::Read>(d: D) -> Result<Self, encode::Error> {
-        let mut d = d.take(MAX_VEC_SIZE as u64);
+        let mut d: io::Take<D> = d.take(MAX_VEC_SIZE as u64);
         let tx_out = TxOut {
             value: Decodable::consensus_decode(&mut d)?,
             sats_ranges: Decodable::consensus_decode(&mut d)?,
