@@ -1,5 +1,5 @@
 [package]
-name = "bitcoin"
+name = "satsnet"
 version = "0.28.0-mempool-electrs"
 authors = ["Andrew Poelstra <apoelstra@wpsoftware.net>"]
 license = "CC0-1.0"
