@@ -224,9 +224,9 @@ impl Default for TxIn {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SatsRange {
     /// The start of the range in satoshis.
-    pub start: i64,
+    pub start: u64,
     /// The size of the range in satoshis.
-    pub size: i64,
+    pub size: u64,
 }
 
 impl Encodable for SatsRange {
