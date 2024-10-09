@@ -763,12 +763,13 @@ impl Decodable for Transaction {
             }
         // non-segwit
         } else {
-            Ok(Transaction {
+            let transaction = Transaction {
                 version,
                 input,
                 output: Decodable::consensus_decode(&mut d)?,
                 lock_time: Decodable::consensus_decode(d)?,
-            })
+            };
+            Ok(transaction)
         }
     }
 }
