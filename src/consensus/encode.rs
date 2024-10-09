@@ -42,7 +42,7 @@ use util::psbt;
 use util::taproot::TapLeafHash;
 use hashes::hex::ToHex;
 
-use blockdata::transaction::{TxOut, Transaction, TxIn};
+use blockdata::transaction::{TxOut, SatsRange, Transaction, TxIn};
 #[cfg(feature = "std")]
 use network::{message_blockdata::Inventory, address::{Address, AddrV2Message}};
 
@@ -580,6 +580,7 @@ impl_vec!(FilterHeader);
 impl_vec!(TxMerkleNode);
 impl_vec!(Transaction);
 impl_vec!(TxOut);
+impl_vec!(SatsRange);
 impl_vec!(TxIn);
 impl_vec!(Vec<u8>);
 impl_vec!(u64);
