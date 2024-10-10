@@ -36,6 +36,7 @@ use blockdata::transaction::Transaction;
 use blockdata::constants::{max_target, WITNESS_SCALE_FACTOR};
 use blockdata::script;
 use VarInt;
+use io;
 
 /// A block header, which contains all the block's information except
 /// the actual transactions
@@ -166,7 +167,28 @@ pub struct Block {
     pub txdata: Vec<Transaction>
 }
 
-impl_consensus_encoding!(Block, header, txdata);
+impl crate::consensus::Encodable for Block {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
+        let mut len = 0;
+        len += self.header.consensus_encode(&mut s)?;
+        len += self.txdata.consensus_encode(&mut s)?;
+        Ok(len)
+    }
+}
+
+impl crate::consensus::Decodable for Block {
+    fn consensus_decode<D: io::Read>(d: D) -> Result<Self, crate::consensus::encode::Error> {
+        let mut d = d.take(crate::consensus::encode::MAX_VEC_SIZE as u64);
+        let header = crate::consensus::Decodable::consensus_decode(&mut d)?;
+        let txdata = crate::consensus::Decodable::consensus_decode(&mut d)?;
+        Ok(Block {
+            header,
+            txdata,
+        })
+    }
+}
+
+// impl_consensus_encoding!(Block, header, txdata);
 
 impl Block {
     /// Returns the block hash.

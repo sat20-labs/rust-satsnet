@@ -153,13 +153,13 @@ pub fn serialize_hex<T: Encodable + ?Sized>(data: &T) -> String {
 /// doesn't consume the entire vector.
 pub fn deserialize<T: Decodable>(data: &[u8]) -> Result<T, Error> {
     let (rv, consumed) = deserialize_partial(data)?;
-    Ok(rv)
+
     // Fail if data are not consumed entirely.
-    // if consumed == data.len() {
-    //     Ok(rv)
-    // } else {
-    //     Err(Error::ParseFailed("data not consumed entirely when explicitly deserializing"))
-    // }
+    if consumed == data.len() {
+        Ok(rv)
+    } else {
+        Err(Error::ParseFailed("data not consumed entirely when explicitly deserializing"))
+    }
 }
 
 /// Deserialize an object from a vector, but will not report an error if said deserialization
@@ -578,13 +578,101 @@ impl_vec!(BlockHash);
 impl_vec!(FilterHash);
 impl_vec!(FilterHeader);
 impl_vec!(TxMerkleNode);
-impl_vec!(Transaction);
-impl_vec!(TxOut);
+// impl_vec!(Transaction);
+// impl_vec!(TxOut);
 // impl_vec!(SatsRange);
-impl_vec!(TxIn);
+// impl_vec!(TxIn);
 impl_vec!(Vec<u8>);
 impl_vec!(u64);
 impl_vec!(TapLeafHash);
+
+impl Encodable for Vec<TxOut> {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
+        let mut len = 0;
+        len += VarInt(self.len() as u64).consensus_encode(&mut s)?;
+        for c in self.iter() {
+            len += c.consensus_encode(&mut s)?;
+        }
+        Ok(len)
+    }
+}
+
+impl Decodable for Vec<TxOut> {
+    fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, Error> {
+        let len = VarInt::consensus_decode(&mut d)?.0;
+        let byte_size = (len as usize)
+            .checked_mul(mem::size_of::<TxOut>())
+            .ok_or(self::Error::ParseFailed("Invalid length"))?;
+        if byte_size > MAX_VEC_SIZE {
+            return Err(self::Error::OversizedVectorAllocation { requested: byte_size, max: MAX_VEC_SIZE })
+        }
+        let mut ret = Vec::with_capacity(len as usize);
+        let mut d = d.take(MAX_VEC_SIZE as u64);
+        for _ in 0..len {
+            ret.push(Decodable::consensus_decode(&mut d)?);
+        }
+        Ok(ret)
+    }
+}
+
+impl Encodable for Vec<TxIn> {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
+        let mut len = 0;
+        len += VarInt(self.len() as u64).consensus_encode(&mut s)?;
+        for c in self.iter() {
+            len += c.consensus_encode(&mut s)?;
+        }
+        Ok(len)
+    }
+}
+
+impl Decodable for Vec<TxIn> {
+    fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, Error> {
+        let len = VarInt::consensus_decode(&mut d)?.0;
+        let byte_size = (len as usize)
+            .checked_mul(mem::size_of::<TxIn>())
+            .ok_or(self::Error::ParseFailed("Invalid length"))?;
+        if byte_size > MAX_VEC_SIZE {
+            return Err(self::Error::OversizedVectorAllocation { requested: byte_size, max: MAX_VEC_SIZE })
+        }
+        let mut ret = Vec::with_capacity(len as usize);
+        let mut d = d.take(MAX_VEC_SIZE as u64);
+        for _ in 0..len {
+            ret.push(Decodable::consensus_decode(&mut d)?);
+        }
+        Ok(ret)
+    }
+}
+
+impl Encodable for Vec<Transaction> {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
+        let mut len = 0;
+        len += VarInt(self.len() as u64).consensus_encode(&mut s)?;
+        for c in self.iter() {
+            len += c.consensus_encode(&mut s)?;
+        }
+        Ok(len)
+    }
+}
+
+impl Decodable for Vec<Transaction> {
+    fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, Error> {
+        let len = VarInt::consensus_decode(&mut d)?.0;
+        let byte_size = (len as usize)
+            .checked_mul(mem::size_of::<Transaction>())
+            .ok_or(self::Error::ParseFailed("Invalid length"))?;
+        if byte_size > MAX_VEC_SIZE {
+            return Err(self::Error::OversizedVectorAllocation { requested: byte_size, max: MAX_VEC_SIZE })
+        }
+        let mut ret = Vec::with_capacity(len as usize);
+        let mut d1 = d.take(MAX_VEC_SIZE as u64);
+        for index in 0..len {
+            println!("index: {}", index);
+            ret.push(Decodable::consensus_decode(&mut d1)?);
+        }
+        Ok(ret)
+    }
+}
 
 impl Encodable for Vec<SatsRange> {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
@@ -602,14 +690,14 @@ impl Decodable for Vec<SatsRange> {
         let len = VarInt::consensus_decode(&mut d)?.0;
         let byte_size = (len as usize)
             .checked_mul(mem::size_of::<SatsRange>())
-            .ok_or(Error::ParseFailed("Invalid length"))?;
+            .ok_or(self::Error::ParseFailed("Invalid length"))?;
         if byte_size > MAX_VEC_SIZE {
-            return Err(Error::OversizedVectorAllocation { requested: byte_size, max: MAX_VEC_SIZE })
+            return Err(self::Error::OversizedVectorAllocation { requested: byte_size, max: MAX_VEC_SIZE })
         }
         let mut ret = Vec::with_capacity(len as usize);
-        let mut d = d.take(MAX_VEC_SIZE as u64);
+        let mut d1 = d.take(MAX_VEC_SIZE as u64);
         for _ in 0..len {
-            ret.push(Decodable::consensus_decode(&mut d)?);
+            ret.push(Decodable::consensus_decode(&mut d1)?);
         }
         Ok(ret)
     }

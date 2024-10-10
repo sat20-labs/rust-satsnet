@@ -229,11 +229,30 @@ pub struct SatsRange {
     pub size: u64,
 }
 
+// impl_consensus_encoding!(SatsRange, start, size);
+
+
+// impl Encodable for SatsRange {
+//     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
+//         let mut len = 0;
+//         len += self.start.consensus_encode(&mut s)?;
+//         len += self.size.consensus_encode(&mut s)?;
+//         Ok(len)
+//     }
+// }
+
 impl Encodable for SatsRange {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
         let mut len = 0;
-        len += self.start.consensus_encode(&mut s)?;
-        len += self.size.consensus_encode(&mut s)?;
+
+        // Encode `start` using VarInt
+        let start_varint = VarInt(self.start);
+        len += start_varint.consensus_encode(&mut s)?;
+
+        // Encode `size` using VarInt
+        let size_varint = VarInt(self.size);
+        len += size_varint.consensus_encode(&mut s)?;
+
         Ok(len)
     }
 }
@@ -241,9 +260,11 @@ impl Encodable for SatsRange {
 impl Decodable for SatsRange {
     fn consensus_decode<D: io::Read>(d: D) -> Result<Self, encode::Error> {
         let mut d: io::Take<D> = d.take(MAX_VEC_SIZE as u64);
+        let start = VarInt::consensus_decode(&mut d)?.0 as u64;
+        let size = VarInt::consensus_decode(&mut d)?.0 as u64;
         let sats_range = SatsRange {
-            start: Decodable::consensus_decode(&mut d)?,
-            size: Decodable::consensus_decode(d)?,
+            start: start,
+            size: size,
         };
         Ok(sats_range)
     }
@@ -657,10 +678,36 @@ impl Encodable for TxOut {
 impl Decodable for TxOut {
     fn consensus_decode<D: io::Read>(d: D) -> Result<Self, encode::Error> {
         let mut d: io::Take<D> = d.take(MAX_VEC_SIZE as u64);
+        // let value = Decodable::consensus_decode(&mut d)?;
+        let value = match Decodable::consensus_decode(&mut d) {
+            Ok(value) => value,
+            Err(e) => {
+                eprintln!("Decoding error: {:?}", e);
+                return Err(e);
+            }
+        };
+
+        // let sats_ranges = Decodable::consensus_decode(&mut d)?;
+        let sats_ranges = match Decodable::consensus_decode(&mut d) {
+            Ok(value) => value,
+            Err(e) => {
+                eprintln!("Decoding error: {:?}", e);
+                return Err(e);
+            }
+        };
+
+        // let script_pubkey = Decodable::consensus_decode(d)?;
+        let script_pubkey = match Decodable::consensus_decode(d) {
+            Ok(value) => value,
+            Err(e) => {
+                eprintln!("Decoding error: {:?}", e);
+                return Err(e);
+            }
+        };
         let tx_out = TxOut {
-            value: Decodable::consensus_decode(&mut d)?,
-            sats_ranges: Decodable::consensus_decode(&mut d)?,
-            script_pubkey: Decodable::consensus_decode(d)?,
+            value: value,
+            sats_ranges: sats_ranges,
+            script_pubkey: script_pubkey,
         };
         Ok(tx_out)
     }
@@ -764,11 +811,22 @@ impl Decodable for Transaction {
             }
         // non-segwit
         } else {
+            let output = match Decodable::consensus_decode(&mut d) {
+                Ok(value) => value,
+                Err(e) => {
+                    eprintln!("Decoding error: {:?}", e);
+                    return Err(e);
+                }
+            };
+
+            // let output = Decodable::consensus_decode(&mut d)?;
+
+            let lock_time = Decodable::consensus_decode(d)?;
             let transaction = Transaction {
                 version,
                 input,
-                output: Decodable::consensus_decode(&mut d)?,
-                lock_time: Decodable::consensus_decode(d)?,
+                output: output,
+                lock_time: lock_time,
             };
             Ok(transaction)
         }
