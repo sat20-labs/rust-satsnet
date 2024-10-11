@@ -666,8 +666,7 @@ impl Decodable for Vec<Transaction> {
         }
         let mut ret = Vec::with_capacity(len as usize);
         let mut d1 = d.take(MAX_VEC_SIZE as u64);
-        for index in 0..len {
-            println!("index: {}", index);
+        for _ in 0..len {
             ret.push(Decodable::consensus_decode(&mut d1)?);
         }
         Ok(ret)
