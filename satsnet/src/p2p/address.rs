@@ -34,11 +34,7 @@ impl Address {
             SocketAddr::V4(addr) => (addr.ip().to_ipv6_mapped().segments(), addr.port()),
             SocketAddr::V6(addr) => (addr.ip().segments(), addr.port()),
         };
-        Address {
-            address,
-            port,
-            services,
-        }
+        Address { address, port, services }
     }
 
     /// Extract socket address from an [Address] message.
@@ -49,9 +45,8 @@ impl Address {
         if addr[0..3] == ONION {
             return Err(io::Error::from(io::ErrorKind::AddrNotAvailable));
         }
-        let ipv6 = Ipv6Addr::new(
-            addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7],
-        );
+        let ipv6 =
+            Ipv6Addr::new(addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7]);
         if let Some(ipv4) = ipv6.to_ipv4() {
             Ok(SocketAddr::V4(SocketAddrV4::new(ipv4, self.port)))
         } else {

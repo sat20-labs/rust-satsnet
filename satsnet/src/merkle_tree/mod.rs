@@ -79,12 +79,8 @@ where
         // If the size is odd, use the last element twice.
         let hash2 = hashes.next().unwrap_or(hash1);
         let mut encoder = T::engine();
-        hash1
-            .consensus_encode(&mut encoder)
-            .expect("in-memory writers don't error");
-        hash2
-            .consensus_encode(&mut encoder)
-            .expect("in-memory writers don't error");
+        hash1.consensus_encode(&mut encoder).expect("in-memory writers don't error");
+        hash2.consensus_encode(&mut encoder).expect("in-memory writers don't error");
         alloc.push(T::from_engine(encoder));
     }
 
@@ -105,12 +101,8 @@ where
         let idx1 = 2 * idx;
         let idx2 = min(idx1 + 1, hashes.len() - 1);
         let mut encoder = T::engine();
-        hashes[idx1]
-            .consensus_encode(&mut encoder)
-            .expect("in-memory writers don't error");
-        hashes[idx2]
-            .consensus_encode(&mut encoder)
-            .expect("in-memory writers don't error");
+        hashes[idx1].consensus_encode(&mut encoder).expect("in-memory writers don't error");
+        hashes[idx2].consensus_encode(&mut encoder).expect("in-memory writers don't error");
         hashes[idx] = T::from_engine(encoder);
     }
     let half_len = hashes.len() / 2 + hashes.len() % 2;

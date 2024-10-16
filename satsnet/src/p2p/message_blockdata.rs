@@ -75,10 +75,7 @@ impl Encodable for Inventory {
             Inventory::WTx(wtxid) => encode_inv!(5, wtxid),
             Inventory::WitnessTransaction(ref t) => encode_inv!(0x40000001, t),
             Inventory::WitnessBlock(ref b) => encode_inv!(0x40000002, b),
-            Inventory::Unknown {
-                inv_type: t,
-                hash: ref d,
-            } => encode_inv!(t, d),
+            Inventory::Unknown { inv_type: t, hash: ref d } => encode_inv!(t, d),
         })
     }
 }
@@ -95,10 +92,7 @@ impl Decodable for Inventory {
             5 => Inventory::WTx(Decodable::consensus_decode(r)?),
             0x40000001 => Inventory::WitnessTransaction(Decodable::consensus_decode(r)?),
             0x40000002 => Inventory::WitnessBlock(Decodable::consensus_decode(r)?),
-            tp => Inventory::Unknown {
-                inv_type: tp,
-                hash: Decodable::consensus_decode(r)?,
-            },
+            tp => Inventory::Unknown { inv_type: tp, hash: Decodable::consensus_decode(r)? },
         })
     }
 }
@@ -134,11 +128,7 @@ pub struct GetHeadersMessage {
 impl GetBlocksMessage {
     /// Construct a new `getblocks` message
     pub fn new(locator_hashes: Vec<BlockHash>, stop_hash: BlockHash) -> GetBlocksMessage {
-        GetBlocksMessage {
-            version: p2p::PROTOCOL_VERSION,
-            locator_hashes,
-            stop_hash,
-        }
+        GetBlocksMessage { version: p2p::PROTOCOL_VERSION, locator_hashes, stop_hash }
     }
 }
 
@@ -147,11 +137,7 @@ impl_consensus_encoding!(GetBlocksMessage, version, locator_hashes, stop_hash);
 impl GetHeadersMessage {
     /// Construct a new `getheaders` message
     pub fn new(locator_hashes: Vec<BlockHash>, stop_hash: BlockHash) -> GetHeadersMessage {
-        GetHeadersMessage {
-            version: p2p::PROTOCOL_VERSION,
-            locator_hashes,
-            stop_hash,
-        }
+        GetHeadersMessage { version: p2p::PROTOCOL_VERSION, locator_hashes, stop_hash }
     }
 }
 

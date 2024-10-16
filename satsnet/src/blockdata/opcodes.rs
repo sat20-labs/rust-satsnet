@@ -377,9 +377,7 @@ impl Opcode {
                     || (op.code >= 141 && op.code <= 142)
                     || (op.code >= 149 && op.code <= 153)
                     || (op.code >= 187 && op.code <= 254) =>
-            {
-                Class::SuccessOp
-            }
+                Class::SuccessOp,
 
             // 11 opcodes of NoOp class
             (OP_NOP, _) => Class::NoOp,
@@ -391,9 +389,7 @@ impl Opcode {
             // 4 opcodes operating equally to `OP_RETURN` only in Legacy context
             (OP_RESERVED, ctx) | (OP_RESERVED1, ctx) | (OP_RESERVED2, ctx) | (OP_VER, ctx)
                 if ctx == ClassifyContext::Legacy =>
-            {
-                Class::ReturnOp
-            }
+                Class::ReturnOp,
 
             // 71 opcodes operating equally to `OP_RETURN` only in Legacy context
             (op, ClassifyContext::Legacy) if op.code >= OP_CHECKSIGADD.code => Class::ReturnOp,
@@ -406,9 +402,8 @@ impl Opcode {
             (OP_PUSHNUM_NEG1, _) => Class::PushNum(-1),
 
             // 16 opcodes of PushNum class
-            (op, _) if op.code >= OP_PUSHNUM_1.code && op.code <= OP_PUSHNUM_16.code => {
-                Class::PushNum(1 + self.code as i32 - OP_PUSHNUM_1.code as i32)
-            }
+            (op, _) if op.code >= OP_PUSHNUM_1.code && op.code <= OP_PUSHNUM_16.code =>
+                Class::PushNum(1 + self.code as i32 - OP_PUSHNUM_1.code as i32),
 
             // 76 opcodes of PushBytes class
             (op, _) if op.code <= OP_PUSHBYTES_75.code => Class::PushBytes(self.code as u32),
@@ -420,9 +415,7 @@ impl Opcode {
 
     /// Encodes [`Opcode`] as a byte.
     #[inline]
-    pub const fn to_u8(self) -> u8 {
-        self.code
-    }
+    pub const fn to_u8(self) -> u8 { self.code }
 
     /// Encodes PUSHNUM [`Opcode`] as a `u8` representing its number (1-16).
     ///
@@ -444,9 +437,7 @@ impl Opcode {
 
 impl From<u8> for Opcode {
     #[inline]
-    fn from(b: u8) -> Opcode {
-        Opcode { code: b }
-    }
+    fn from(b: u8) -> Opcode { Opcode { code: b } }
 }
 
 debug_from_display!(Opcode);
@@ -545,7 +536,5 @@ ordinary_opcode! {
 impl Ordinary {
     /// Encodes [`Opcode`] as a byte.
     #[inline]
-    pub fn to_u8(self) -> u8 {
-        self as u8
-    }
+    pub fn to_u8(self) -> u8 { self as u8 }
 }

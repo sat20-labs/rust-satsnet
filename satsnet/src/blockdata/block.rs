@@ -37,15 +37,11 @@ impl_hashencode!(TxMerkleNode);
 impl_hashencode!(WitnessMerkleNode);
 
 impl From<Txid> for TxMerkleNode {
-    fn from(txid: Txid) -> Self {
-        Self::from_byte_array(txid.to_byte_array())
-    }
+    fn from(txid: Txid) -> Self { Self::from_byte_array(txid.to_byte_array()) }
 }
 
 impl From<Wtxid> for WitnessMerkleNode {
-    fn from(wtxid: Wtxid) -> Self {
-        Self::from_byte_array(wtxid.to_byte_array())
-    }
+    fn from(wtxid: Wtxid) -> Self { Self::from_byte_array(wtxid.to_byte_array()) }
 }
 
 /// Bitcoin block header.
@@ -76,15 +72,7 @@ pub struct Header {
     pub nonce: u32,
 }
 
-impl_consensus_encoding!(
-    Header,
-    version,
-    prev_blockhash,
-    merkle_root,
-    time,
-    bits,
-    nonce
-);
+impl_consensus_encoding!(Header, version, prev_blockhash, merkle_root, time, bits, nonce);
 
 impl Header {
     /// The number of bytes that the block header contributes to the size of a block.
@@ -94,15 +82,12 @@ impl Header {
     /// Returns the block hash.
     pub fn block_hash(&self) -> BlockHash {
         let mut engine = BlockHash::engine();
-        self.consensus_encode(&mut engine)
-            .expect("engines don't error");
+        self.consensus_encode(&mut engine).expect("engines don't error");
         BlockHash::from_engine(engine)
     }
 
     /// Computes the target (range [0, T] inclusive) that a blockhash must land in to be valid.
-    pub fn target(&self) -> Target {
-        self.bits.into()
-    }
+    pub fn target(&self) -> Target { self.bits.into() }
 
     /// Computes the popular "difficulty" measure for mining.
     ///
@@ -113,9 +98,7 @@ impl Header {
     }
 
     /// Computes the popular "difficulty" measure for mining and returns a float value of f64.
-    pub fn difficulty_float(&self) -> f64 {
-        self.target().difficulty_float()
-    }
+    pub fn difficulty_float(&self) -> f64 { self.target().difficulty_float() }
 
     /// Checks that the proof-of-work for the block is valid, returning the block hash.
     pub fn validate_pow(&self, required_target: Target) -> Result<BlockHash, ValidationError> {
@@ -132,9 +115,7 @@ impl Header {
     }
 
     /// Returns the total work of the block.
-    pub fn work(&self) -> Work {
-        self.target().to_work()
-    }
+    pub fn work(&self) -> Work { self.target().to_work() }
 }
 
 impl fmt::Debug for Header {
@@ -191,16 +172,12 @@ impl Version {
     ///
     /// This is the data type used in consensus code in Bitcoin Core.
     #[inline]
-    pub const fn from_consensus(v: i32) -> Self {
-        Version(v)
-    }
+    pub const fn from_consensus(v: i32) -> Self { Version(v) }
 
     /// Returns the inner `i32` value.
     ///
     /// This is the data type used in consensus code in Bitcoin Core.
-    pub fn to_consensus(self) -> i32 {
-        self.0
-    }
+    pub fn to_consensus(self) -> i32 { self.0 }
 
     /// Checks whether the version number is signalling a soft fork at the given bit.
     ///
@@ -223,9 +200,7 @@ impl Version {
 }
 
 impl Default for Version {
-    fn default() -> Version {
-        Self::NO_SOFT_FORK_SIGNALLING
-    }
+    fn default() -> Version { Self::NO_SOFT_FORK_SIGNALLING }
 }
 
 impl Encodable for Version {
@@ -265,9 +240,7 @@ impl_consensus_encoding!(Block, header, txdata);
 
 impl Block {
     /// Returns the block hash.
-    pub fn block_hash(&self) -> BlockHash {
-        self.header.block_hash()
-    }
+    pub fn block_hash(&self) -> BlockHash { self.header.block_hash() }
 
     /// Checks if merkle root of header matches merkle root of the transaction list.
     pub fn check_merkle_root(&self) -> bool {
@@ -281,11 +254,7 @@ impl Block {
     pub fn check_witness_commitment(&self) -> bool {
         const MAGIC: [u8; 6] = [0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
         // Witness commitment is optional if there are no transactions using SegWit in the block.
-        if self
-            .txdata
-            .iter()
-            .all(|t| t.input.iter().all(|i| i.witness.is_empty()))
-        {
+        if self.txdata.iter().all(|t| t.input.iter().all(|i| i.witness.is_empty())) {
             return true;
         }
 
@@ -323,10 +292,7 @@ impl Block {
 
     /// Computes the transaction merkle root.
     pub fn compute_merkle_root(&self) -> Option<TxMerkleNode> {
-        let hashes = self
-            .txdata
-            .iter()
-            .map(|obj| obj.compute_txid().to_raw_hash());
+        let hashes = self.txdata.iter().map(|obj| obj.compute_txid().to_raw_hash());
         merkle_tree::calculate_root(hashes).map(|h| h.into())
     }
 
@@ -336,9 +302,7 @@ impl Block {
         witness_reserved_value: &[u8],
     ) -> WitnessCommitment {
         let mut encoder = WitnessCommitment::engine();
-        witness_root
-            .consensus_encode(&mut encoder)
-            .expect("engines don't error");
+        witness_root.consensus_encode(&mut encoder).expect("engines don't error");
         encoder.input(witness_reserved_value);
         WitnessCommitment::from_engine(encoder)
     }
@@ -392,9 +356,7 @@ impl Block {
     }
 
     /// Returns the coinbase transaction, if one is present.
-    pub fn coinbase(&self) -> Option<&Transaction> {
-        self.txdata.first()
-    }
+    pub fn coinbase(&self) -> Option<&Transaction> { self.txdata.first() }
 
     /// Returns the block height, as encoded in the coinbase transaction according to BIP34.
     pub fn bip34_block_height(&self) -> Result<u64, Bip34Error> {
@@ -413,11 +375,7 @@ impl Block {
 
         let cb = self.coinbase().ok_or(Bip34Error::NotPresent)?;
         let input = cb.input.first().ok_or(Bip34Error::NotPresent)?;
-        let push = input
-            .script_sig
-            .instructions_minimal()
-            .next()
-            .ok_or(Bip34Error::NotPresent)?;
+        let push = input.script_sig.instructions_minimal().next().ok_or(Bip34Error::NotPresent)?;
         match push.map_err(|_| Bip34Error::NotPresent)? {
             script::Instruction::PushBytes(b) => {
                 // Check that the number is encoded in the minimal way.
@@ -435,27 +393,19 @@ impl Block {
 }
 
 impl From<Header> for BlockHash {
-    fn from(header: Header) -> BlockHash {
-        header.block_hash()
-    }
+    fn from(header: Header) -> BlockHash { header.block_hash() }
 }
 
 impl From<&Header> for BlockHash {
-    fn from(header: &Header) -> BlockHash {
-        header.block_hash()
-    }
+    fn from(header: &Header) -> BlockHash { header.block_hash() }
 }
 
 impl From<Block> for BlockHash {
-    fn from(block: Block) -> BlockHash {
-        block.block_hash()
-    }
+    fn from(block: Block) -> BlockHash { block.block_hash() }
 }
 
 impl From<&Block> for BlockHash {
-    fn from(block: &Block) -> BlockHash {
-        block.block_hash()
-    }
+    fn from(block: &Block) -> BlockHash { block.block_hash() }
 }
 
 /// An error when looking up a BIP34 block height.

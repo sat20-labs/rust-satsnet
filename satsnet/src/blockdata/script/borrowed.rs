@@ -75,17 +75,13 @@ pub struct Script(pub(in crate::blockdata::script) [u8]);
 impl ToOwned for Script {
     type Owned = ScriptBuf;
 
-    fn to_owned(&self) -> Self::Owned {
-        ScriptBuf(self.0.to_owned())
-    }
+    fn to_owned(&self) -> Self::Owned { ScriptBuf(self.0.to_owned()) }
 }
 
 impl Script {
     /// Creates a new empty script.
     #[inline]
-    pub fn new() -> &'static Script {
-        Script::from_bytes(&[])
-    }
+    pub fn new() -> &'static Script { Script::from_bytes(&[]) }
 
     /// Treat byte slice as `Script`
     #[inline]
@@ -111,32 +107,22 @@ impl Script {
 
     /// Returns the script data as a byte slice.
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
-    }
+    pub fn as_bytes(&self) -> &[u8] { &self.0 }
 
     /// Returns the script data as a mutable byte slice.
     #[inline]
-    pub fn as_mut_bytes(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
+    pub fn as_mut_bytes(&mut self) -> &mut [u8] { &mut self.0 }
 
     /// Creates a new script builder
-    pub fn builder() -> Builder {
-        Builder::new()
-    }
+    pub fn builder() -> Builder { Builder::new() }
 
     /// Returns 160-bit hash of the script.
     #[inline]
-    pub fn script_hash(&self) -> ScriptHash {
-        ScriptHash::hash(self.as_bytes())
-    }
+    pub fn script_hash(&self) -> ScriptHash { ScriptHash::hash(self.as_bytes()) }
 
     /// Returns 256-bit hash of the script for P2WSH outputs.
     #[inline]
-    pub fn wscript_hash(&self) -> WScriptHash {
-        WScriptHash::hash(self.as_bytes())
-    }
+    pub fn wscript_hash(&self) -> WScriptHash { WScriptHash::hash(self.as_bytes()) }
 
     /// Computes leaf hash of tapscript.
     #[inline]
@@ -146,34 +132,24 @@ impl Script {
 
     /// Returns the length in bytes of the script.
     #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
+    pub fn len(&self) -> usize { self.0.len() }
 
     /// Returns whether the script is the empty script.
     #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
+    pub fn is_empty(&self) -> bool { self.0.is_empty() }
 
     /// Returns a copy of the script data.
     #[inline]
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_owned()
-    }
+    pub fn to_bytes(&self) -> Vec<u8> { self.0.to_owned() }
 
     /// Returns an iterator over script bytes.
     #[inline]
-    pub fn bytes(&self) -> Bytes<'_> {
-        Bytes(self.as_bytes().iter().copied())
-    }
+    pub fn bytes(&self) -> Bytes<'_> { Bytes(self.as_bytes().iter().copied()) }
 
     /// Computes the P2WSH output corresponding to this witnessScript (aka the "witness redeem
     /// script").
     #[inline]
-    pub fn to_p2wsh(&self) -> ScriptBuf {
-        ScriptBuf::new_p2wsh(&self.wscript_hash())
-    }
+    pub fn to_p2wsh(&self) -> ScriptBuf { ScriptBuf::new_p2wsh(&self.wscript_hash()) }
 
     /// Computes P2TR output with a given internal key and a single script spending path equal to
     /// the current script, assuming that the script is a Tapscript.
@@ -263,9 +239,7 @@ impl Script {
     /// You can obtain the public key, if its valid,
     /// by calling [`p2pk_public_key()`](Self::p2pk_public_key)
     #[inline]
-    pub fn is_p2pk(&self) -> bool {
-        self.p2pk_pubkey_bytes().is_some()
-    }
+    pub fn is_p2pk(&self) -> bool { self.p2pk_pubkey_bytes().is_some() }
 
     /// Returns the public key if this script is P2PK with a **valid** public key.
     ///
@@ -281,12 +255,10 @@ impl Script {
     #[inline]
     pub(in crate::blockdata::script) fn p2pk_pubkey_bytes(&self) -> Option<&[u8]> {
         match self.len() {
-            67 if self.0[0] == OP_PUSHBYTES_65.to_u8() && self.0[66] == OP_CHECKSIG.to_u8() => {
-                Some(&self.0[1..66])
-            }
-            35 if self.0[0] == OP_PUSHBYTES_33.to_u8() && self.0[34] == OP_CHECKSIG.to_u8() => {
-                Some(&self.0[1..34])
-            }
+            67 if self.0[0] == OP_PUSHBYTES_65.to_u8() && self.0[66] == OP_CHECKSIG.to_u8() =>
+                Some(&self.0[1..66]),
+            35 if self.0[0] == OP_PUSHBYTES_33.to_u8() && self.0[34] == OP_CHECKSIG.to_u8() =>
+                Some(&self.0[1..34]),
             _ => None,
         }
     }
@@ -346,9 +318,7 @@ impl Script {
 
     /// Checks whether a script pubkey is a Segregated Witness (segwit) program.
     #[inline]
-    pub fn is_witness_program(&self) -> bool {
-        self.witness_version().is_some()
-    }
+    pub fn is_witness_program(&self) -> bool { self.witness_version().is_some() }
 
     /// Checks whether a script pubkey is a P2WSH output.
     #[inline]
@@ -407,9 +377,7 @@ impl Script {
     }
 
     /// Computes the P2SH output corresponding to this redeem script.
-    pub fn to_p2sh(&self) -> ScriptBuf {
-        ScriptBuf::new_p2sh(&self.script_hash())
-    }
+    pub fn to_p2sh(&self) -> ScriptBuf { ScriptBuf::new_p2sh(&self.script_hash()) }
 
     /// Returns the script code used for spending a P2WPKH output if this script is a script pubkey
     /// for a P2WPKH output. The `scriptCode` is described in [BIP143].
@@ -429,9 +397,7 @@ impl Script {
     /// Returns the minimum value an output with this script should have in order to be
     /// broadcastable on today’s Bitcoin network.
     #[deprecated(since = "0.32.0", note = "use minimal_non_dust and friends")]
-    pub fn dust_value(&self) -> crate::Amount {
-        self.minimal_non_dust()
-    }
+    pub fn dust_value(&self) -> crate::Amount { self.minimal_non_dust() }
 
     /// Returns the minimum value an output with this script should have in order to be
     /// broadcastable on today's Bitcoin network.
@@ -470,13 +436,11 @@ impl Script {
             } else if self.is_witness_program() {
                 32 + 4 + 1 + (107 / 4) + 4 + // The spend cost copied from Core
                     8 + // The serialized size of the TxOut's amount field
-                    self.consensus_encode(&mut sink()).expect("sinks don't error") as u64
-            // The serialized size of this script_pubkey
+                    self.consensus_encode(&mut sink()).expect("sinks don't error") as u64 // The serialized size of this script_pubkey
             } else {
                 32 + 4 + 1 + 107 + 4 + // The spend cost copied from Core
                     8 + // The serialized size of the TxOut's amount field
-                    self.consensus_encode(&mut sink()).expect("sinks don't error") as u64
-                // The serialized size of this script_pubkey
+                    self.consensus_encode(&mut sink()).expect("sinks don't error") as u64 // The serialized size of this script_pubkey
             })
             .expect("dust_relay_fee or script length should not be absurdly large")
             / 1000; // divide by 1000 like in Core to get value as it cancels out DEFAULT_MIN_RELAY_TX_FEE
@@ -500,9 +464,7 @@ impl Script {
     /// (Note: taproot scripts don't count toward the sigop count of the block,
     /// nor do they have CHECKMULTISIG operations. This function does not count OP_CHECKSIGADD,
     /// so do not use this to try and estimate if a taproot script goes over the sigop budget.)
-    pub fn count_sigops(&self) -> usize {
-        self.count_sigops_internal(true)
-    }
+    pub fn count_sigops(&self) -> usize { self.count_sigops_internal(true) }
 
     /// Counts the sigops for this Script using legacy counting.
     ///
@@ -516,9 +478,7 @@ impl Script {
     /// (Note: taproot scripts don't count toward the sigop count of the block,
     /// nor do they have CHECKMULTISIG operations. This function does not count OP_CHECKSIGADD,
     /// so do not use this to try and estimate if a taproot script goes over the sigop budget.)
-    pub fn count_sigops_legacy(&self) -> usize {
-        self.count_sigops_internal(false)
-    }
+    pub fn count_sigops_legacy(&self) -> usize { self.count_sigops_internal(false) }
 
     fn count_sigops_internal(&self, accurate: bool) -> usize {
         let mut n = 0;
@@ -569,10 +529,7 @@ impl Script {
     /// To force minimal pushes, use [`instructions_minimal`](Self::instructions_minimal).
     #[inline]
     pub fn instructions(&self) -> Instructions {
-        Instructions {
-            data: self.0.iter(),
-            enforce_minimal: false,
-        }
+        Instructions { data: self.0.iter(), enforce_minimal: false }
     }
 
     /// Iterates over the script instructions while enforcing minimal pushes.
@@ -581,10 +538,7 @@ impl Script {
     /// is not minimal.
     #[inline]
     pub fn instructions_minimal(&self) -> Instructions {
-        Instructions {
-            data: self.0.iter(),
-            enforce_minimal: true,
-        }
+        Instructions { data: self.0.iter(), enforce_minimal: true }
     }
 
     /// Iterates over the script instructions and their indices.
@@ -625,9 +579,7 @@ impl Script {
     /// This is a more convenient and performant way to write `format!("{:x}", script)`.
     /// For better performance you should generally prefer displaying the script but if `String` is
     /// required (this is common in tests) this method can be used.
-    pub fn to_hex_string(&self) -> String {
-        self.as_bytes().to_lower_hex_string()
-    }
+    pub fn to_hex_string(&self) -> String { self.as_bytes().to_lower_hex_string() }
 
     /// Returns the first opcode of the script (if there is any).
     pub fn first_opcode(&self) -> Option<Opcode> {
@@ -677,31 +629,21 @@ impl Iterator for Bytes<'_> {
     type Item = u8;
 
     #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
+    fn next(&mut self) -> Option<Self::Item> { self.0.next() }
 
     #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
-    }
+    fn size_hint(&self) -> (usize, Option<usize>) { self.0.size_hint() }
 
     #[inline]
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        self.0.nth(n)
-    }
+    fn nth(&mut self, n: usize) -> Option<Self::Item> { self.0.nth(n) }
 }
 
 impl DoubleEndedIterator for Bytes<'_> {
     #[inline]
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.0.next_back()
-    }
+    fn next_back(&mut self) -> Option<Self::Item> { self.0.next_back() }
 
     #[inline]
-    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
-        self.0.nth_back(n)
-    }
+    fn nth_back(&mut self, n: usize) -> Option<Self::Item> { self.0.nth_back(n) }
 }
 
 impl ExactSizeIterator for Bytes<'_> {}

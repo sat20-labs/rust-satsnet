@@ -76,14 +76,9 @@ fn bitcoin_genesis_tx() -> Transaction {
 
     // Outputs
     let script_bytes = hex!("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f");
-    let out_script = script::Builder::new()
-        .push_slice(script_bytes)
-        .push_opcode(OP_CHECKSIG)
-        .into_script();
-    ret.output.push(TxOut {
-        value: Amount::from_sat(50 * 100_000_000),
-        script_pubkey: out_script,
-    });
+    let out_script =
+        script::Builder::new().push_slice(script_bytes).push_opcode(OP_CHECKSIG).into_script();
+    ret.output.push(TxOut { value: Amount::from_sat(50 * 100_000_000), script_pubkey: out_script });
 
     // end
     ret
@@ -194,13 +189,7 @@ impl ChainHash {
     /// for specification.
     pub fn using_genesis_block(params: impl AsRef<Params>) -> Self {
         let network = params.as_ref().network;
-        let hashes = [
-            Self::BITCOIN,
-            Self::TESTNET,
-            Self::SIGNET,
-            Self::REGTEST,
-            Self::TESTNET4,
-        ];
+        let hashes = [Self::BITCOIN, Self::TESTNET, Self::SIGNET, Self::REGTEST, Self::TESTNET4,];
         hashes[network as usize]
     }
 
@@ -209,12 +198,7 @@ impl ChainHash {
     /// See [BOLT 0](https://github.com/lightning/bolts/blob/ffeece3dab1c52efdb9b53ae476539320fa44938/00-introduction.md#chain_hash)
     /// for specification.
     pub const fn using_genesis_block_const(network: Network) -> Self {
-        let hashes = [
-            Self::BITCOIN,
-            Self::TESTNET,
-            Self::SIGNET,
-            Self::REGTEST,
-            Self::TESTNET4,
+        let hashes = [Self::BITCOIN, Self::TESTNET, Self::SIGNET, Self::REGTEST, Self::TESTNET4,
         ];
         hashes[network as usize]
     }

@@ -70,9 +70,7 @@ pub struct PrefilledTransaction {
 }
 
 impl convert::AsRef<Transaction> for PrefilledTransaction {
-    fn as_ref(&self) -> &Transaction {
-        &self.tx
-    }
+    fn as_ref(&self) -> &Transaction { &self.tx }
 }
 
 impl Encodable for PrefilledTransaction {
@@ -105,12 +103,8 @@ impl ShortId {
         // 1. single-SHA256 hashing the block header with the nonce appended (in little-endian)
         let h = {
             let mut engine = sha256::Hash::engine();
-            header
-                .consensus_encode(&mut engine)
-                .expect("engines don't error");
-            nonce
-                .consensus_encode(&mut engine)
-                .expect("engines don't error");
+            header.consensus_encode(&mut engine).expect("engines don't error");
+            nonce.consensus_encode(&mut engine).expect("engines don't error");
             sha256::Hash::from_engine(engine)
         };
 
@@ -339,9 +333,7 @@ impl fmt::Display for TxIndexOutOfRangeError {
 
 #[cfg(feature = "std")]
 impl error::Error for TxIndexOutOfRangeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
 }
 
 /// A [BlockTransactions] structure is used to provide some of the transactions

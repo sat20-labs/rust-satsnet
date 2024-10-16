@@ -122,10 +122,7 @@ impl MerkleBlock {
         let matches: Vec<bool> = block_txids.iter().map(match_txids).collect();
 
         let pmt = PartialMerkleTree::from_txids(block_txids, &matches);
-        MerkleBlock {
-            header: *header,
-            txn: pmt,
-        }
+        MerkleBlock { header: *header, txn: pmt }
     }
 
     /// Extract the matching txid's represented by this partial merkle tree
@@ -207,19 +204,13 @@ pub struct PartialMerkleTree {
 
 impl PartialMerkleTree {
     /// Returns the total number of transactions in the block.
-    pub fn num_transactions(&self) -> u32 {
-        self.num_transactions
-    }
+    pub fn num_transactions(&self) -> u32 { self.num_transactions }
 
     /// Returns the node-is-parent-of-matched-txid bits of the partial merkle tree.
-    pub fn bits(&self) -> &Vec<bool> {
-        &self.bits
-    }
+    pub fn bits(&self) -> &Vec<bool> { &self.bits }
 
     /// Returns the transaction ids and internal hashes of the partial merkle tree.
-    pub fn hashes(&self) -> &Vec<TxMerkleNode> {
-        &self.hashes
-    }
+    pub fn hashes(&self) -> &Vec<TxMerkleNode> { &self.hashes }
 
     /// Construct a partial merkle tree
     /// The `txids` are the transaction hashes of the block and the `matches` is the contains flags
@@ -308,9 +299,7 @@ impl PartialMerkleTree {
         if hash_used != self.hashes.len() as u32 {
             return Err(NotAllHashesConsumed);
         }
-        Ok(TxMerkleNode::from_byte_array(
-            hash_merkle_root.to_byte_array(),
-        ))
+        Ok(TxMerkleNode::from_byte_array(hash_merkle_root.to_byte_array()))
     }
 
     /// Calculates the height of the tree.
@@ -438,11 +427,8 @@ impl PartialMerkleTree {
     /// Helper method to produce SHA256D(left + right)
     fn parent_hash(left: TxMerkleNode, right: TxMerkleNode) -> TxMerkleNode {
         let mut encoder = TxMerkleNode::engine();
-        left.consensus_encode(&mut encoder)
-            .expect("engines don't error");
-        right
-            .consensus_encode(&mut encoder)
-            .expect("engines don't error");
+        left.consensus_encode(&mut encoder).expect("engines don't error");
+        right.consensus_encode(&mut encoder).expect("engines don't error");
         TxMerkleNode::from_engine(encoder)
     }
 }
@@ -487,11 +473,7 @@ impl Decodable for PartialMerkleTree {
             }
         }
 
-        Ok(PartialMerkleTree {
-            num_transactions,
-            hashes,
-            bits,
-        })
+        Ok(PartialMerkleTree { num_transactions, hashes, bits })
     }
 }
 

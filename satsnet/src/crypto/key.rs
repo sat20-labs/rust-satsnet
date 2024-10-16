@@ -40,19 +40,13 @@ pub struct PublicKey {
 impl PublicKey {
     /// Constructs compressed ECDSA public key from the provided generic Secp256k1 public key
     pub fn new(key: impl Into<secp256k1::PublicKey>) -> PublicKey {
-        PublicKey {
-            compressed: true,
-            inner: key.into(),
-        }
+        PublicKey { compressed: true, inner: key.into() }
     }
 
     /// Constructs uncompressed (legacy) ECDSA public key from the provided generic Secp256k1
     /// public key
     pub fn new_uncompressed(key: impl Into<secp256k1::PublicKey>) -> PublicKey {
-        PublicKey {
-            compressed: false,
-            inner: key.into(),
-        }
+        PublicKey { compressed: false, inner: key.into() }
     }
 
     fn with_serialized<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
@@ -64,9 +58,7 @@ impl PublicKey {
     }
 
     /// Returns bitcoin 160-bit hash of the public key
-    pub fn pubkey_hash(&self) -> PubkeyHash {
-        self.with_serialized(PubkeyHash::hash)
-    }
+    pub fn pubkey_hash(&self) -> PubkeyHash { self.with_serialized(PubkeyHash::hash) }
 
     /// Returns bitcoin 160-bit hash of the public key for witness program
     pub fn wpubkey_hash(&self) -> Result<WPubkeyHash, UncompressedPublicKeyError> {
@@ -98,11 +90,7 @@ impl PublicKey {
         let mut bytes = [0; 65];
 
         reader.read_exact(&mut bytes[0..1])?;
-        let bytes = if bytes[0] < 4 {
-            &mut bytes[..33]
-        } else {
-            &mut bytes[..65]
-        };
+        let bytes = if bytes[0] < 4 { &mut bytes[..33] } else { &mut bytes[..65] };
 
         reader.read_exact(&mut bytes[1..])?;
         Self::from_slice(bytes).map_err(|e| {
@@ -200,10 +188,7 @@ impl PublicKey {
             return Err(FromSliceError::InvalidKeyPrefix(data[0]));
         }
 
-        Ok(PublicKey {
-            compressed,
-            inner: secp256k1::PublicKey::from_slice(data)?,
-        })
+        Ok(PublicKey { compressed, inner: secp256k1::PublicKey::from_slice(data)? })
     }
 
     /// Computes the public key as supposed to be used with this secret
@@ -226,15 +211,11 @@ impl PublicKey {
 }
 
 impl From<secp256k1::PublicKey> for PublicKey {
-    fn from(pk: secp256k1::PublicKey) -> PublicKey {
-        PublicKey::new(pk)
-    }
+    fn from(pk: secp256k1::PublicKey) -> PublicKey { PublicKey::new(pk) }
 }
 
 impl From<PublicKey> for XOnlyPublicKey {
-    fn from(pk: PublicKey) -> XOnlyPublicKey {
-        pk.inner.into()
-    }
+    fn from(pk: PublicKey) -> XOnlyPublicKey { pk.inner.into() }
 }
 
 /// An opaque return type for PublicKey::to_sort_key
@@ -281,15 +262,11 @@ hashes::hash_newtype! {
 impl_asref_push_bytes!(PubkeyHash, WPubkeyHash);
 
 impl From<PublicKey> for PubkeyHash {
-    fn from(key: PublicKey) -> PubkeyHash {
-        key.pubkey_hash()
-    }
+    fn from(key: PublicKey) -> PubkeyHash { key.pubkey_hash() }
 }
 
 impl From<&PublicKey> for PubkeyHash {
-    fn from(key: &PublicKey) -> PubkeyHash {
-        key.pubkey_hash()
-    }
+    fn from(key: &PublicKey) -> PubkeyHash { key.pubkey_hash() }
 }
 
 /// An always-compressed Bitcoin ECDSA public key
@@ -298,9 +275,7 @@ pub struct CompressedPublicKey(pub secp256k1::PublicKey);
 
 impl CompressedPublicKey {
     /// Returns bitcoin 160-bit hash of the public key
-    pub fn pubkey_hash(&self) -> PubkeyHash {
-        PubkeyHash::hash(&self.to_bytes())
-    }
+    pub fn pubkey_hash(&self) -> PubkeyHash { PubkeyHash::hash(&self.to_bytes()) }
 
     /// Returns bitcoin 160-bit hash of the public key for witness program
     pub fn wpubkey_hash(&self) -> WPubkeyHash {
@@ -342,9 +317,7 @@ impl CompressedPublicKey {
     ///
     /// Note that this can be used as a sort key to get BIP67-compliant sorting.
     /// That's why this type doesn't have the `to_sort_key` method - it would duplicate this one.
-    pub fn to_bytes(&self) -> [u8; 33] {
-        self.0.serialize()
-    }
+    pub fn to_bytes(&self) -> [u8; 33] { self.0.serialize() }
 
     /// Deserialize a public key from a slice
     pub fn from_slice(data: &[u8]) -> Result<Self, secp256k1::Error> {
@@ -397,39 +370,27 @@ impl TryFrom<PublicKey> for CompressedPublicKey {
 }
 
 impl From<CompressedPublicKey> for PublicKey {
-    fn from(value: CompressedPublicKey) -> Self {
-        PublicKey::new(value.0)
-    }
+    fn from(value: CompressedPublicKey) -> Self { PublicKey::new(value.0) }
 }
 
 impl From<CompressedPublicKey> for XOnlyPublicKey {
-    fn from(pk: CompressedPublicKey) -> Self {
-        pk.0.into()
-    }
+    fn from(pk: CompressedPublicKey) -> Self { pk.0.into() }
 }
 
 impl From<CompressedPublicKey> for PubkeyHash {
-    fn from(key: CompressedPublicKey) -> Self {
-        key.pubkey_hash()
-    }
+    fn from(key: CompressedPublicKey) -> Self { key.pubkey_hash() }
 }
 
 impl From<&CompressedPublicKey> for PubkeyHash {
-    fn from(key: &CompressedPublicKey) -> Self {
-        key.pubkey_hash()
-    }
+    fn from(key: &CompressedPublicKey) -> Self { key.pubkey_hash() }
 }
 
 impl From<CompressedPublicKey> for WPubkeyHash {
-    fn from(key: CompressedPublicKey) -> Self {
-        key.wpubkey_hash()
-    }
+    fn from(key: CompressedPublicKey) -> Self { key.wpubkey_hash() }
 }
 
 impl From<&CompressedPublicKey> for WPubkeyHash {
-    fn from(key: &CompressedPublicKey) -> Self {
-        key.wpubkey_hash()
-    }
+    fn from(key: &CompressedPublicKey) -> Self { key.wpubkey_hash() }
 }
 
 /// A Bitcoin ECDSA private key
@@ -454,11 +415,7 @@ impl PrivateKey {
     /// Constructs compressed ECDSA private key from the provided generic Secp256k1 private key
     /// and the specified network
     pub fn new(key: secp256k1::SecretKey, network: impl Into<NetworkKind>) -> PrivateKey {
-        PrivateKey {
-            compressed: true,
-            network: network.into(),
-            inner: key,
-        }
+        PrivateKey { compressed: true, network: network.into(), inner: key }
     }
 
     /// Constructs uncompressed (legacy) ECDSA private key from the provided generic Secp256k1
@@ -467,11 +424,7 @@ impl PrivateKey {
         key: secp256k1::SecretKey,
         network: impl Into<NetworkKind>,
     ) -> PrivateKey {
-        PrivateKey {
-            compressed: false,
-            network: network.into(),
-            inner: key,
-        }
+        PrivateKey { compressed: false, network: network.into(), inner: key }
     }
 
     /// Creates a public key from this private key
@@ -483,19 +436,14 @@ impl PrivateKey {
     }
 
     /// Serialize the private key to bytes
-    pub fn to_bytes(self) -> Vec<u8> {
-        self.inner[..].to_vec()
-    }
+    pub fn to_bytes(self) -> Vec<u8> { self.inner[..].to_vec() }
 
     /// Deserialize a private key from a slice
     pub fn from_slice(
         data: &[u8],
         network: impl Into<NetworkKind>,
     ) -> Result<PrivateKey, secp256k1::Error> {
-        Ok(PrivateKey::new(
-            secp256k1::SecretKey::from_slice(data)?,
-            network,
-        ))
+        Ok(PrivateKey::new(secp256k1::SecretKey::from_slice(data)?, network))
     }
 
     /// Format the private key to WIF format.
@@ -551,23 +499,17 @@ impl PrivateKey {
 }
 
 impl fmt::Display for PrivateKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt_wif(f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { self.fmt_wif(f) }
 }
 
 impl FromStr for PrivateKey {
     type Err = FromWifError;
-    fn from_str(s: &str) -> Result<PrivateKey, FromWifError> {
-        PrivateKey::from_wif(s)
-    }
+    fn from_str(s: &str) -> Result<PrivateKey, FromWifError> { PrivateKey::from_wif(s) }
 }
 
 impl ops::Index<ops::RangeFull> for PrivateKey {
     type Output = [u8];
-    fn index(&self, _: ops::RangeFull) -> &[u8] {
-        &self.inner[..]
-    }
+    fn index(&self, _: ops::RangeFull) -> &[u8] { &self.inner[..] }
 }
 
 #[cfg(feature = "serde")]
@@ -755,15 +697,11 @@ pub type UntweakedPublicKey = XOnlyPublicKey;
 pub struct TweakedPublicKey(XOnlyPublicKey);
 
 impl fmt::LowerHex for TweakedPublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::LowerHex::fmt(&self.0, f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::LowerHex::fmt(&self.0, f) }
 }
 
 impl fmt::Display for TweakedPublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
 }
 
 /// Untweaked BIP-340 key pair
@@ -850,9 +788,7 @@ impl TapTweak for UntweakedPublicKey {
         (TweakedPublicKey(output_key), parity)
     }
 
-    fn dangerous_assume_tweaked(self) -> TweakedPublicKey {
-        TweakedPublicKey(self)
-    }
+    fn dangerous_assume_tweaked(self) -> TweakedPublicKey { TweakedPublicKey(self) }
 }
 
 impl TapTweak for UntweakedKeypair {
@@ -878,15 +814,11 @@ impl TapTweak for UntweakedKeypair {
     ) -> TweakedKeypair {
         let (pubkey, _parity) = XOnlyPublicKey::from_keypair(&self);
         let tweak = TapTweakHash::from_key_and_tweak(pubkey, merkle_root).to_scalar();
-        let tweaked = self
-            .add_xonly_tweak(secp, &tweak)
-            .expect("Tap tweak failed");
+        let tweaked = self.add_xonly_tweak(secp, &tweak).expect("Tap tweak failed");
         TweakedKeypair(tweaked)
     }
 
-    fn dangerous_assume_tweaked(self) -> TweakedKeypair {
-        TweakedKeypair(self)
-    }
+    fn dangerous_assume_tweaked(self) -> TweakedKeypair { TweakedKeypair(self) }
 }
 
 impl TweakedPublicKey {
@@ -908,17 +840,13 @@ impl TweakedPublicKey {
     }
 
     /// Returns the underlying public key.
-    pub fn to_inner(self) -> XOnlyPublicKey {
-        self.0
-    }
+    pub fn to_inner(self) -> XOnlyPublicKey { self.0 }
 
     /// Serialize the key as a byte-encoded pair of values. In compressed form
     /// the y-coordinate is represented by only a single bit, as x determines
     /// it up to one bit.
     #[inline]
-    pub fn serialize(&self) -> [u8; constants::SCHNORR_PUBLIC_KEY_SIZE] {
-        self.0.serialize()
-    }
+    pub fn serialize(&self) -> [u8; constants::SCHNORR_PUBLIC_KEY_SIZE] { self.0.serialize() }
 }
 
 impl TweakedKeypair {
@@ -928,15 +856,11 @@ impl TweakedKeypair {
     /// This method is dangerous and can lead to loss of funds if used incorrectly.
     /// Specifically, in multi-party protocols a peer can provide a value that allows them to steal.
     #[inline]
-    pub fn dangerous_assume_tweaked(pair: Keypair) -> TweakedKeypair {
-        TweakedKeypair(pair)
-    }
+    pub fn dangerous_assume_tweaked(pair: Keypair) -> TweakedKeypair { TweakedKeypair(pair) }
 
     /// Returns the underlying key pair.
     #[inline]
-    pub fn to_inner(self) -> Keypair {
-        self.0
-    }
+    pub fn to_inner(self) -> Keypair { self.0 }
 
     /// Returns the [`TweakedPublicKey`] and its [`Parity`] for this [`TweakedKeypair`].
     #[inline]
@@ -948,23 +872,17 @@ impl TweakedKeypair {
 
 impl From<TweakedPublicKey> for XOnlyPublicKey {
     #[inline]
-    fn from(pair: TweakedPublicKey) -> Self {
-        pair.0
-    }
+    fn from(pair: TweakedPublicKey) -> Self { pair.0 }
 }
 
 impl From<TweakedKeypair> for Keypair {
     #[inline]
-    fn from(pair: TweakedKeypair) -> Self {
-        pair.0
-    }
+    fn from(pair: TweakedKeypair) -> Self { pair.0 }
 }
 
 impl From<TweakedKeypair> for TweakedPublicKey {
     #[inline]
-    fn from(pair: TweakedKeypair) -> Self {
-        TweakedPublicKey::from_keypair(pair)
-    }
+    fn from(pair: TweakedKeypair) -> Self { TweakedPublicKey::from_keypair(pair) }
 }
 
 /// Error returned while generating key from slice.
@@ -1006,9 +924,7 @@ impl std::error::Error for FromSliceError {
 }
 
 impl From<secp256k1::Error> for FromSliceError {
-    fn from(e: secp256k1::Error) -> Self {
-        Self::Secp256k1(e)
-    }
+    fn from(e: secp256k1::Error) -> Self { Self::Secp256k1(e) }
 }
 
 /// Error generated from WIF key format.
@@ -1033,12 +949,10 @@ impl fmt::Display for FromWifError {
 
         match *self {
             Base58(ref e) => write_err!(f, "invalid base58"; e),
-            InvalidBase58PayloadLength(ref e) => {
-                write_err!(f, "decoded base58 data was an invalid length"; e)
-            }
-            InvalidAddressVersion(ref e) => {
-                write_err!(f, "decoded base58 data contained an invalid address version btye"; e)
-            }
+            InvalidBase58PayloadLength(ref e) =>
+                write_err!(f, "decoded base58 data was an invalid length"; e),
+            InvalidAddressVersion(ref e) =>
+                write_err!(f, "decoded base58 data contained an invalid address version btye"; e),
             Secp256k1(ref e) => write_err!(f, "private key validation failed"; e),
         }
     }
@@ -1059,15 +973,11 @@ impl std::error::Error for FromWifError {
 }
 
 impl From<base58::Error> for FromWifError {
-    fn from(e: base58::Error) -> Self {
-        Self::Base58(e)
-    }
+    fn from(e: base58::Error) -> Self { Self::Base58(e) }
 }
 
 impl From<secp256k1::Error> for FromWifError {
-    fn from(e: secp256k1::Error) -> Self {
-        Self::Secp256k1(e)
-    }
+    fn from(e: secp256k1::Error) -> Self { Self::Secp256k1(e) }
 }
 
 impl From<InvalidBase58PayloadLengthError> for FromWifError {
@@ -1077,9 +987,7 @@ impl From<InvalidBase58PayloadLengthError> for FromWifError {
 }
 
 impl From<InvalidAddressVersionError> for FromWifError {
-    fn from(e: InvalidAddressVersionError) -> FromWifError {
-        Self::InvalidAddressVersion(e)
-    }
+    fn from(e: InvalidAddressVersionError) -> FromWifError { Self::InvalidAddressVersion(e) }
 }
 
 /// Error returned while constructing public key from string.
@@ -1101,11 +1009,8 @@ impl fmt::Display for ParsePublicKeyError {
         match self {
             Encoding(e) => write_err!(f, "string error"; e),
             InvalidChar(char) => write!(f, "hex error {}", char),
-            InvalidHexLength(got) => write!(
-                f,
-                "pubkey string should be 66 or 130 digits long, got: {}",
-                got
-            ),
+            InvalidHexLength(got) =>
+                write!(f, "pubkey string should be 66 or 130 digits long, got: {}", got),
         }
     }
 }
@@ -1123,9 +1028,7 @@ impl std::error::Error for ParsePublicKeyError {
 }
 
 impl From<FromSliceError> for ParsePublicKeyError {
-    fn from(e: FromSliceError) -> Self {
-        Self::Encoding(e)
-    }
+    fn from(e: FromSliceError) -> Self { Self::Encoding(e) }
 }
 
 /// Error returned when parsing a [`CompressedPublicKey`] from a string.
@@ -1162,15 +1065,11 @@ impl std::error::Error for ParseCompressedPublicKeyError {
 }
 
 impl From<secp256k1::Error> for ParseCompressedPublicKeyError {
-    fn from(e: secp256k1::Error) -> Self {
-        Self::Secp256k1(e)
-    }
+    fn from(e: secp256k1::Error) -> Self { Self::Secp256k1(e) }
 }
 
 impl From<hex::HexToArrayError> for ParseCompressedPublicKeyError {
-    fn from(e: hex::HexToArrayError) -> Self {
-        Self::Hex(e)
-    }
+    fn from(e: hex::HexToArrayError) -> Self { Self::Hex(e) }
 }
 
 /// Segwit public keys must always be compressed.
@@ -1186,9 +1085,7 @@ impl fmt::Display for UncompressedPublicKeyError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for UncompressedPublicKeyError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
 }
 
 /// Decoded base58 data was an invalid length.
@@ -1200,18 +1097,12 @@ pub struct InvalidBase58PayloadLengthError {
 
 impl InvalidBase58PayloadLengthError {
     /// Returns the invalid payload length.
-    pub fn invalid_base58_payload_length(&self) -> usize {
-        self.length
-    }
+    pub fn invalid_base58_payload_length(&self) -> usize { self.length }
 }
 
 impl fmt::Display for InvalidBase58PayloadLengthError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "decoded base58 data was an invalid length: {} (expected 33 or 34)",
-            self.length
-        )
+        write!(f, "decoded base58 data was an invalid length: {} (expected 33 or 34)", self.length)
     }
 }
 
@@ -1227,18 +1118,12 @@ pub struct InvalidAddressVersionError {
 
 impl InvalidAddressVersionError {
     /// Returns the invalid version.
-    pub fn invalid_address_version(&self) -> u8 {
-        self.invalid
-    }
+    pub fn invalid_address_version(&self) -> u8 { self.invalid }
 }
 
 impl fmt::Display for InvalidAddressVersionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "invalid address version in decoded base58 data {}",
-            self.invalid
-        )
+        write!(f, "invalid address version in decoded base58 data {}", self.invalid)
     }
 }
 

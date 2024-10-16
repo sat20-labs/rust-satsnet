@@ -194,9 +194,7 @@ impl str::FromStr for TapSighashType {
             "SIGHASH_ALL|SIGHASH_ANYONECANPAY" => Ok(AllPlusAnyoneCanPay),
             "SIGHASH_NONE|SIGHASH_ANYONECANPAY" => Ok(NonePlusAnyoneCanPay),
             "SIGHASH_SINGLE|SIGHASH_ANYONECANPAY" => Ok(SinglePlusAnyoneCanPay),
-            _ => Err(SighashTypeParseError {
-                unrecognized: s.to_owned(),
-            }),
+            _ => Err(SighashTypeParseError { unrecognized: s.to_owned() }),
         }
     }
 }
@@ -223,13 +221,12 @@ where
 
     fn get(&self, input_index: usize) -> Result<&TxOut, PrevoutsIndexError> {
         match self {
-            Prevouts::One(index, prevout) => {
+            Prevouts::One(index, prevout) =>
                 if input_index == *index {
                     Ok(prevout.borrow())
                 } else {
                     Err(PrevoutsIndexError::InvalidOneIndex)
-                }
-            }
+                },
             Prevouts::All(prevouts) => prevouts
                 .get(input_index)
                 .map(|x| x.borrow())
@@ -245,18 +242,13 @@ pub struct PrevoutsSizeError;
 
 impl fmt::Display for PrevoutsSizeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "number of supplied prevouts differs from the number of inputs in transaction"
-        )
+        write!(f, "number of supplied prevouts differs from the number of inputs in transaction")
     }
 }
 
 #[cfg(feature = "std")]
 impl std::error::Error for PrevoutsSizeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
 }
 
 /// A single prevout was been provided but all prevouts are needed without `ANYONECANPAY`.
@@ -266,18 +258,13 @@ pub struct PrevoutsKindError;
 
 impl fmt::Display for PrevoutsKindError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "single prevout provided but all prevouts are needed without `ANYONECANPAY`"
-        )
+        write!(f, "single prevout provided but all prevouts are needed without `ANYONECANPAY`")
     }
 }
 
 #[cfg(feature = "std")]
 impl std::error::Error for PrevoutsKindError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
 }
 
 /// [`Prevouts`] index related errors.
@@ -317,15 +304,10 @@ impl std::error::Error for PrevoutsIndexError {
 impl<'s> ScriptPath<'s> {
     /// Creates a new `ScriptPath` structure.
     pub fn new(script: &'s Script, leaf_version: LeafVersion) -> Self {
-        ScriptPath {
-            script,
-            leaf_version,
-        }
+        ScriptPath { script, leaf_version }
     }
     /// Creates a new `ScriptPath` structure using default leaf version value.
-    pub fn with_defaults(script: &'s Script) -> Self {
-        Self::new(script, LeafVersion::TapScript)
-    }
+    pub fn with_defaults(script: &'s Script) -> Self { Self::new(script, LeafVersion::TapScript) }
     /// Computes the leaf hash for this `ScriptPath`.
     pub fn leaf_hash(&self) -> TapLeafHash {
         let mut enc = TapLeafHash::engine();
@@ -334,18 +316,14 @@ impl<'s> ScriptPath<'s> {
             .to_consensus()
             .consensus_encode(&mut enc)
             .expect("writing to hash enging should never fail");
-        self.script
-            .consensus_encode(&mut enc)
-            .expect("writing to hash enging should never fail");
+        self.script.consensus_encode(&mut enc).expect("writing to hash enging should never fail");
 
         TapLeafHash::from_engine(enc)
     }
 }
 
 impl<'s> From<ScriptPath<'s>> for TapLeafHash {
-    fn from(script_path: ScriptPath<'s>) -> TapLeafHash {
-        script_path.leaf_hash()
-    }
+    fn from(script_path: ScriptPath<'s>) -> TapLeafHash { script_path.leaf_hash() }
 }
 
 /// Hashtype of an input's signature, encoded in the last byte of the signature.
@@ -402,9 +380,7 @@ impl str::FromStr for EcdsaSighashType {
             "SIGHASH_ALL|SIGHASH_ANYONECANPAY" => Ok(AllPlusAnyoneCanPay),
             "SIGHASH_NONE|SIGHASH_ANYONECANPAY" => Ok(NonePlusAnyoneCanPay),
             "SIGHASH_SINGLE|SIGHASH_ANYONECANPAY" => Ok(SinglePlusAnyoneCanPay),
-            _ => Err(SighashTypeParseError {
-                unrecognized: s.to_owned(),
-            }),
+            _ => Err(SighashTypeParseError { unrecognized: s.to_owned() }),
         }
     }
 }
@@ -478,9 +454,7 @@ impl EcdsaSighashType {
     /// Converts [`EcdsaSighashType`] to a `u32` sighash flag.
     ///
     /// The returned value is guaranteed to be a valid according to standardness rules.
-    pub fn to_u32(self) -> u32 {
-        self as u32
-    }
+    pub fn to_u32(self) -> u32 { self as u32 }
 }
 
 impl From<EcdsaSighashType> for TapSighashType {
@@ -543,9 +517,7 @@ impl fmt::Display for InvalidSighashTypeError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for InvalidSighashTypeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
 }
 
 /// This type is consensus valid but an input including it would prevent the transaction from
@@ -561,9 +533,7 @@ impl fmt::Display for NonStandardSighashTypeError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for NonStandardSighashTypeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
 }
 
 /// Error returned for failure during parsing one of the sighash types.
@@ -584,9 +554,7 @@ impl fmt::Display for SighashTypeParseError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for SighashTypeParseError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
 }
 
 impl<R: Borrow<Transaction>> SighashCache<R> {
@@ -596,23 +564,14 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
     /// sighashes to be valid, no fields in the transaction may change except for script_sig and
     /// witness.
     pub fn new(tx: R) -> Self {
-        SighashCache {
-            tx,
-            common_cache: None,
-            taproot_cache: None,
-            segwit_cache: None,
-        }
+        SighashCache { tx, common_cache: None, taproot_cache: None, segwit_cache: None }
     }
 
     /// Returns the reference to the cached transaction.
-    pub fn transaction(&self) -> &Transaction {
-        self.tx.borrow()
-    }
+    pub fn transaction(&self) -> &Transaction { self.tx.borrow() }
 
     /// Destroys the cache and recovers the stored transaction.
-    pub fn into_transaction(self) -> R {
-        self.tx
-    }
+    pub fn into_transaction(self) -> R { self.tx }
 
     /// Encodes the BIP341 signing data for any flag type into a given object implementing the
     /// [`io::Write`] trait.
@@ -625,9 +584,7 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
         leaf_hash_code_separator: Option<(TapLeafHash, u32)>,
         sighash_type: TapSighashType,
     ) -> Result<(), SigningDataError<TaprootError>> {
-        prevouts
-            .check_all(self.tx.borrow())
-            .map_err(SigningDataError::sighash)?;
+        prevouts.check_all(self.tx.borrow()).map_err(SigningDataError::sighash)?;
 
         let (sighash, anyone_can_pay) = sighash_type.split_anyonecanpay_flag();
 
@@ -685,14 +642,8 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
         //      scriptPubKey (35): scriptPubKey of the previous output spent by this input, serialized as script inside CTxOut. Its size is always 35 bytes.
         //      nSequence (4): nSequence of this input.
         if anyone_can_pay {
-            let txin = &self
-                .tx
-                .borrow()
-                .tx_in(input_index)
-                .map_err(SigningDataError::sighash)?;
-            let previous_output = prevouts
-                .get(input_index)
-                .map_err(SigningDataError::sighash)?;
+            let txin = &self.tx.borrow().tx_in(input_index).map_err(SigningDataError::sighash)?;
+            let previous_output = prevouts.get(input_index).map_err(SigningDataError::sighash)?;
             txin.previous_output.consensus_encode(writer)?;
             previous_output.value.consensus_encode(writer)?;
             previous_output.script_pubkey.consensus_encode(writer)?;
@@ -720,12 +671,10 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
                 .borrow()
                 .output
                 .get(input_index)
-                .ok_or(TaprootError::SingleMissingOutput(
-                    SingleMissingOutputError {
-                        input_index,
-                        outputs_length: self.tx.borrow().output.len(),
-                    },
-                ))
+                .ok_or(TaprootError::SingleMissingOutput(SingleMissingOutputError {
+                    input_index,
+                    outputs_length: self.tx.borrow().output.len(),
+                }))
                 .map_err(SigningDataError::Sighash)?
                 .consensus_encode(&mut enc)?;
             let hash = sha256::Hash::from_engine(enc);
@@ -847,11 +796,7 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
         }
 
         {
-            let txin = &self
-                .tx
-                .borrow()
-                .tx_in(input_index)
-                .map_err(SigningDataError::sighash)?;
+            let txin = &self.tx.borrow().tx_in(input_index).map_err(SigningDataError::sighash)?;
             txin.previous_output.consensus_encode(writer)?;
             script_code.consensus_encode(writer)?;
             value.consensus_encode(writer)?;
@@ -886,9 +831,7 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
         value: Amount,
         sighash_type: EcdsaSighashType,
     ) -> Result<SegwitV0Sighash, P2wpkhError> {
-        let script_code = script_pubkey
-            .p2wpkh_script_code()
-            .ok_or(P2wpkhError::NotP2wpkhScript)?;
+        let script_code = script_pubkey.p2wpkh_script_code().ok_or(P2wpkhError::NotP2wpkhScript)?;
 
         let mut enc = SegwitV0Sighash::engine();
         self.segwit_v0_encode_signing_data_to(
@@ -1025,13 +968,7 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
                         .iter()
                         .take(input_index + 1) // sign all outputs up to and including this one, but erase
                         .enumerate() // all of them except for this one
-                        .map(|(n, out)| {
-                            if n == input_index {
-                                out.clone()
-                            } else {
-                                TxOut::NULL
-                            }
-                        });
+                        .map(|(n, out)| if n == input_index { out.clone() } else { TxOut::NULL });
                     output_iter.collect()
                 }
                 EcdsaSighashType::None => vec![],
@@ -1104,9 +1041,7 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
             let mut enc_prevouts = sha256::Hash::engine();
             let mut enc_sequences = sha256::Hash::engine();
             for txin in tx.input.iter() {
-                txin.previous_output
-                    .consensus_encode(&mut enc_prevouts)
-                    .unwrap();
+                txin.previous_output.consensus_encode(&mut enc_prevouts).unwrap();
                 txin.sequence.consensus_encode(&mut enc_sequences).unwrap();
             }
             CommonCache {
@@ -1141,16 +1076,8 @@ impl<R: Borrow<Transaction>> SighashCache<R> {
             let mut enc_amounts = sha256::Hash::engine();
             let mut enc_script_pubkeys = sha256::Hash::engine();
             for prevout in prevouts {
-                prevout
-                    .borrow()
-                    .value
-                    .consensus_encode(&mut enc_amounts)
-                    .unwrap();
-                prevout
-                    .borrow()
-                    .script_pubkey
-                    .consensus_encode(&mut enc_script_pubkeys)
-                    .unwrap();
+                prevout.borrow().value.consensus_encode(&mut enc_amounts).unwrap();
+                prevout.borrow().script_pubkey.consensus_encode(&mut enc_script_pubkeys).unwrap();
             }
             TaprootCache {
                 amounts: sha256::Hash::from_engine(enc_amounts),
@@ -1190,11 +1117,7 @@ impl<R: BorrowMut<Transaction>> SighashCache<R> {
     /// [`segwit v0`]: <https://github.com/rust-bitcoin/rust-bitcoin/blob/master/bitcoin/examples/sign-tx-segwit-v0.rs>
     /// [`taproot`]: <https://github.com/rust-bitcoin/rust-bitcoin/blob/master/bitcoin/examples/sign-tx-taproot.rs>
     pub fn witness_mut(&mut self, input_index: usize) -> Option<&mut Witness> {
-        self.tx
-            .borrow_mut()
-            .input
-            .get_mut(input_index)
-            .map(|i| &mut i.witness)
+        self.tx.borrow_mut().input.get_mut(input_index).map(|i| &mut i.witness)
     }
 }
 
@@ -1215,9 +1138,7 @@ impl<'a> Annex<'a> {
     }
 
     /// Returns the Annex bytes data (including first byte `0x50`).
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0
-    }
+    pub fn as_bytes(&self) -> &[u8] { self.0 }
 }
 
 impl<'a> Encodable for Annex<'a> {
@@ -1278,27 +1199,19 @@ impl std::error::Error for TaprootError {
 }
 
 impl From<transaction::InputsIndexError> for TaprootError {
-    fn from(e: transaction::InputsIndexError) -> Self {
-        Self::InputsIndex(e)
-    }
+    fn from(e: transaction::InputsIndexError) -> Self { Self::InputsIndex(e) }
 }
 
 impl From<PrevoutsSizeError> for TaprootError {
-    fn from(e: PrevoutsSizeError) -> Self {
-        Self::PrevoutsSize(e)
-    }
+    fn from(e: PrevoutsSizeError) -> Self { Self::PrevoutsSize(e) }
 }
 
 impl From<PrevoutsKindError> for TaprootError {
-    fn from(e: PrevoutsKindError) -> Self {
-        Self::PrevoutsKind(e)
-    }
+    fn from(e: PrevoutsKindError) -> Self { Self::PrevoutsKind(e) }
 }
 
 impl From<PrevoutsIndexError> for TaprootError {
-    fn from(e: PrevoutsIndexError) -> Self {
-        Self::PrevoutsIndex(e)
-    }
+    fn from(e: PrevoutsIndexError) -> Self { Self::PrevoutsIndex(e) }
 }
 
 /// Error computing a P2WPKH sighash.
@@ -1314,9 +1227,7 @@ pub enum P2wpkhError {
 internals::impl_from_infallible!(P2wpkhError);
 
 impl From<transaction::InputsIndexError> for P2wpkhError {
-    fn from(value: transaction::InputsIndexError) -> Self {
-        P2wpkhError::Sighash(value)
-    }
+    fn from(value: transaction::InputsIndexError) -> Self { P2wpkhError::Sighash(value) }
 }
 
 impl fmt::Display for P2wpkhError {
@@ -1365,9 +1276,7 @@ impl fmt::Display for SingleMissingOutputError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for SingleMissingOutputError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
 }
 
 /// Annex must be at least one byte long and the first bytes must be `0x50`.
@@ -1388,11 +1297,8 @@ impl fmt::Display for AnnexError {
 
         match *self {
             Empty => write!(f, "the annex is empty"),
-            IncorrectPrefix(byte) => write!(
-                f,
-                "incorrect prefix byte in the annex {:02x}, expecting 0x50",
-                byte
-            ),
+            IncorrectPrefix(byte) =>
+                write!(f, "incorrect prefix byte in the annex {:02x}, expecting 0x50", byte),
         }
     }
 }
@@ -1473,12 +1379,10 @@ impl<E> EncodeSigningDataResult<E> {
     {
         match self {
             EncodeSigningDataResult::SighashSingleBug => EncodeSigningDataResult::SighashSingleBug,
-            EncodeSigningDataResult::WriteResult(Err(e)) => {
-                EncodeSigningDataResult::WriteResult(Err(f(e)))
-            }
-            EncodeSigningDataResult::WriteResult(Ok(o)) => {
-                EncodeSigningDataResult::WriteResult(Ok(o))
-            }
+            EncodeSigningDataResult::WriteResult(Err(e)) =>
+                EncodeSigningDataResult::WriteResult(Err(f(e))),
+            EncodeSigningDataResult::WriteResult(Ok(o)) =>
+                EncodeSigningDataResult::WriteResult(Ok(o)),
         }
     }
 }
@@ -1506,17 +1410,13 @@ impl<E> SigningDataError<E> {
         }
     }
 
-    fn sighash<E2: Into<E>>(error: E2) -> Self {
-        Self::Sighash(error.into())
-    }
+    fn sighash<E2: Into<E>>(error: E2) -> Self { Self::Sighash(error.into()) }
 }
 
 // We cannot simultaneously impl `From<E>`. it was determined that this alternative requires less
 // manual `map_err` calls.
 impl<E> From<io::Error> for SigningDataError<E> {
-    fn from(value: io::Error) -> Self {
-        Self::Io(value)
-    }
+    fn from(value: io::Error) -> Self { Self::Io(value) }
 }
 
 impl<E: fmt::Display> fmt::Display for SigningDataError<E> {

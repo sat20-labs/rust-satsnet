@@ -53,9 +53,8 @@ mod message_signing {
                 InvalidLength => write!(f, "length not 65 bytes"),
                 InvalidEncoding(ref e) => write_err!(f, "invalid encoding"; e),
                 InvalidBase64 => write!(f, "invalid base64"),
-                UnsupportedAddressType(ref address_type) => {
-                    write!(f, "unsupported address type: {}", address_type)
-                }
+                UnsupportedAddressType(ref address_type) =>
+                    write!(f, "unsupported address type: {}", address_type),
             }
         }
     }
@@ -94,10 +93,7 @@ mod message_signing {
     impl MessageSignature {
         /// Create a new [MessageSignature].
         pub fn new(signature: RecoverableSignature, compressed: bool) -> MessageSignature {
-            MessageSignature {
-                signature,
-                compressed,
-            }
+            MessageSignature { signature, compressed }
         }
 
         /// Serialize to bytes.
@@ -141,10 +137,7 @@ mod message_signing {
         ) -> Result<PublicKey, MessageSignatureError> {
             let msg = secp256k1::Message::from_digest(msg_hash.to_byte_array());
             let pubkey = secp_ctx.recover_ecdsa(&msg, &self.signature)?;
-            Ok(PublicKey {
-                inner: pubkey,
-                compressed: self.compressed,
-            })
+            Ok(PublicKey { inner: pubkey, compressed: self.compressed })
         }
 
         /// Verify that the signature signs the message and was signed by the given address.
@@ -161,9 +154,8 @@ mod message_signing {
                     let pubkey = self.recover_pubkey(secp_ctx, msg_hash)?;
                     Ok(address.pubkey_hash() == Some(pubkey.pubkey_hash()))
                 }
-                Some(address_type) => {
-                    Err(MessageSignatureError::UnsupportedAddressType(address_type))
-                }
+                Some(address_type) =>
+                    Err(MessageSignatureError::UnsupportedAddressType(address_type)),
                 None => Ok(false),
             }
         }
@@ -179,27 +171,20 @@ mod message_signing {
         impl MessageSignature {
             /// Convert a signature from base64 encoding.
             pub fn from_base64(s: &str) -> Result<MessageSignature, MessageSignatureError> {
-                let bytes = BASE64_STANDARD
-                    .decode(s)
-                    .map_err(|_| MessageSignatureError::InvalidBase64)?;
+                let bytes =
+                    BASE64_STANDARD.decode(s).map_err(|_| MessageSignatureError::InvalidBase64)?;
                 MessageSignature::from_slice(&bytes)
             }
 
             /// Convert to base64 encoding.
-            pub fn to_base64(self) -> String {
-                BASE64_STANDARD.encode(self.serialize())
-            }
+            pub fn to_base64(self) -> String { BASE64_STANDARD.encode(self.serialize()) }
         }
 
         impl fmt::Display for MessageSignature {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 let bytes = self.serialize();
                 // This avoids the allocation of a String.
-                write!(
-                    f,
-                    "{}",
-                    base64::display::Base64Display::new(&bytes, &BASE64_STANDARD)
-                )
+                write!(f, "{}", base64::display::Base64Display::new(&bytes, &BASE64_STANDARD))
             }
         }
 
@@ -217,9 +202,7 @@ pub fn signed_msg_hash(msg: &str) -> sha256d::Hash {
     let mut engine = sha256d::Hash::engine();
     engine.input(BITCOIN_SIGNED_MSG_PREFIX);
     let msg_len = encode::VarInt::from(msg.len());
-    msg_len
-        .consensus_encode(&mut engine)
-        .expect("engines don't error");
+    msg_len.consensus_encode(&mut engine).expect("engines don't error");
     engine.input(msg.as_bytes());
     sha256d::Hash::from_engine(engine)
 }

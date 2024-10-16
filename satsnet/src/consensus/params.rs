@@ -72,7 +72,7 @@ pub static REGTEST: Params = Params::REGTEST;
 /// The testnet4 parameters.
 pub static TESTNET4: Params = Params::TESTNET4;
 
-#[allow(deprecated)] // For `pow_limit`.
+#[allow(deprecated)]            // For `pow_limit`.
 impl Params {
     /// The mainnet parameters (alias for `Params::MAINNET`).
     pub const BITCOIN: Params = Params::MAINNET;
@@ -180,33 +180,23 @@ impl Params {
 }
 
 impl From<Network> for Params {
-    fn from(value: Network) -> Self {
-        Self::new(value)
-    }
+    fn from(value: Network) -> Self { Self::new(value) }
 }
 
 impl From<&Network> for Params {
-    fn from(value: &Network) -> Self {
-        Self::new(*value)
-    }
+    fn from(value: &Network) -> Self { Self::new(*value) }
 }
 
 impl From<Network> for &'static Params {
-    fn from(value: Network) -> Self {
-        value.params()
-    }
+    fn from(value: Network) -> Self { value.params() }
 }
 
 impl From<&Network> for &'static Params {
-    fn from(value: &Network) -> Self {
-        value.params()
-    }
+    fn from(value: &Network) -> Self { value.params() }
 }
 
 impl AsRef<Params> for Params {
-    fn as_ref(&self) -> &Params {
-        self
-    }
+    fn as_ref(&self) -> &Params { self }
 }
 
 impl AsRef<Params> for Network {

@@ -71,28 +71,14 @@ impl fmt::Display for Error {
 
         match *self {
             Io(ref e) => write_err!(f, "IO error"; e),
-            OversizedVectorAllocation {
-                requested: ref r,
-                max: ref m,
-            } => write!(
-                f,
-                "allocation of oversized vector: requested {}, maximum {}",
-                r, m
-            ),
-            InvalidChecksum {
-                expected: ref e,
-                actual: ref a,
-            } => write!(
-                f,
-                "invalid checksum: expected {:x}, actual {:x}",
-                e.as_hex(),
-                a.as_hex()
-            ),
+            OversizedVectorAllocation { requested: ref r, max: ref m } =>
+                write!(f, "allocation of oversized vector: requested {}, maximum {}", r, m),
+            InvalidChecksum { expected: ref e, actual: ref a } =>
+                write!(f, "invalid checksum: expected {:x}, actual {:x}", e.as_hex(), a.as_hex()),
             NonMinimalVarInt => write!(f, "non-minimal varint"),
             ParseFailed(ref s) => write!(f, "parse failed: {}", s),
-            UnsupportedSegwitFlag(ref swflag) => {
-                write!(f, "unsupported segwit version: {}", swflag)
-            }
+            UnsupportedSegwitFlag(ref swflag) =>
+                write!(f, "unsupported segwit version: {}", swflag),
         }
     }
 }
@@ -114,9 +100,7 @@ impl std::error::Error for Error {
 }
 
 impl From<io::Error> for Error {
-    fn from(error: io::Error) -> Self {
-        Error::Io(error)
-    }
+    fn from(error: io::Error) -> Self { Error::Io(error) }
 }
 
 /// Hex deserialization error.
@@ -133,9 +117,8 @@ impl fmt::Display for FromHexError {
         use FromHexError::*;
 
         match *self {
-            OddLengthString(ref e) => {
-                write_err!(f, "odd length, failed to create bytes from hex"; e)
-            }
+            OddLengthString(ref e) =>
+                write_err!(f, "odd length, failed to create bytes from hex"; e),
             Decode(ref e) => write_err!(f, "decoding error"; e),
         }
     }
@@ -155,17 +138,13 @@ impl std::error::Error for FromHexError {
 
 impl From<OddLengthStringError> for FromHexError {
     #[inline]
-    fn from(e: OddLengthStringError) -> Self {
-        Self::OddLengthString(e)
-    }
+    fn from(e: OddLengthStringError) -> Self { Self::OddLengthString(e) }
 }
 
 /// Encodes an object into a vector.
 pub fn serialize<T: Encodable + ?Sized>(data: &T) -> Vec<u8> {
     let mut encoder = Vec::new();
-    let len = data
-        .consensus_encode(&mut encoder)
-        .expect("in-memory writers don't error");
+    let len = data.consensus_encode(&mut encoder).expect("in-memory writers don't error");
     debug_assert_eq!(len, encoder.len());
     encoder
 }
@@ -184,9 +163,7 @@ pub fn deserialize<T: Decodable>(data: &[u8]) -> Result<T, Error> {
     if consumed == data.len() {
         Ok(rv)
     } else {
-        Err(Error::ParseFailed(
-            "data not consumed entirely when explicitly deserializing",
-        ))
+        Err(Error::ParseFailed("data not consumed entirely when explicitly deserializing"))
     }
 }
 
@@ -291,21 +268,13 @@ impl<W: Write + ?Sized> WriteExt for W {
     encoder_fn!(emit_i16, i16);
 
     #[inline]
-    fn emit_i8(&mut self, v: i8) -> Result<(), io::Error> {
-        self.write_all(&[v as u8])
-    }
+    fn emit_i8(&mut self, v: i8) -> Result<(), io::Error> { self.write_all(&[v as u8]) }
     #[inline]
-    fn emit_u8(&mut self, v: u8) -> Result<(), io::Error> {
-        self.write_all(&[v])
-    }
+    fn emit_u8(&mut self, v: u8) -> Result<(), io::Error> { self.write_all(&[v]) }
     #[inline]
-    fn emit_bool(&mut self, v: bool) -> Result<(), io::Error> {
-        self.write_all(&[v as u8])
-    }
+    fn emit_bool(&mut self, v: bool) -> Result<(), io::Error> { self.write_all(&[v as u8]) }
     #[inline]
-    fn emit_slice(&mut self, v: &[u8]) -> Result<(), io::Error> {
-        self.write_all(v)
-    }
+    fn emit_slice(&mut self, v: &[u8]) -> Result<(), io::Error> { self.write_all(v) }
 }
 
 impl<R: Read + ?Sized> ReadExt for R {
@@ -329,9 +298,7 @@ impl<R: Read + ?Sized> ReadExt for R {
         Ok(slice[0] as i8)
     }
     #[inline]
-    fn read_bool(&mut self) -> Result<bool, Error> {
-        ReadExt::read_i8(self).map(|bit| bit != 0)
-    }
+    fn read_bool(&mut self) -> Result<bool, Error> { ReadExt::read_i8(self).map(|bit| bit != 0) }
     #[inline]
     fn read_slice(&mut self, slice: &mut [u8]) -> Result<(), Error> {
         self.read_exact(slice).map_err(Error::Io)
@@ -425,19 +392,13 @@ impl CheckedData {
     }
 
     /// Returns a reference to the raw data without the checksum.
-    pub fn data(&self) -> &[u8] {
-        &self.data
-    }
+    pub fn data(&self) -> &[u8] { &self.data }
 
     /// Returns the raw data without the checksum.
-    pub fn into_data(self) -> Vec<u8> {
-        self.data
-    }
+    pub fn into_data(self) -> Vec<u8> { self.data }
 
     /// Returns the checksum of the data.
-    pub fn checksum(&self) -> [u8; 4] {
-        self.checksum
-    }
+    pub fn checksum(&self) -> [u8; 4] { self.checksum }
 }
 
 // Primitive types
@@ -786,10 +747,7 @@ impl Decodable for Vec<u8> {
     fn consensus_decode_from_finite_reader<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, Error> {
         let len = VarInt::consensus_decode(r)?.0 as usize;
         // most real-world vec of bytes data, wouldn't be larger than 128KiB
-        let opts = ReadBytesFromFiniteReaderOpts {
-            len,
-            chunk_size: 128 * 1024,
-        };
+        let opts = ReadBytesFromFiniteReaderOpts { len, chunk_size: 128 * 1024 };
         read_bytes_from_finite_reader(r, opts)
     }
 }
@@ -832,17 +790,11 @@ impl Decodable for CheckedData {
         let len = u32::consensus_decode_from_finite_reader(r)? as usize;
 
         let checksum = <[u8; 4]>::consensus_decode_from_finite_reader(r)?;
-        let opts = ReadBytesFromFiniteReaderOpts {
-            len,
-            chunk_size: MAX_VEC_SIZE,
-        };
+        let opts = ReadBytesFromFiniteReaderOpts { len, chunk_size: MAX_VEC_SIZE };
         let data = read_bytes_from_finite_reader(r, opts)?;
         let expected_checksum = sha2_checksum(&data);
         if expected_checksum != checksum {
-            Err(self::Error::InvalidChecksum {
-                expected: expected_checksum,
-                actual: checksum,
-            })
+            Err(self::Error::InvalidChecksum { expected: expected_checksum, actual: checksum })
         } else {
             Ok(CheckedData { data, checksum })
         }
@@ -917,9 +869,7 @@ impl Encodable for sha256d::Hash {
 
 impl Decodable for sha256d::Hash {
     fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, Error> {
-        Ok(Self::from_byte_array(
-            <<Self as Hash>::Bytes>::consensus_decode(r)?,
-        ))
+        Ok(Self::from_byte_array(<<Self as Hash>::Bytes>::consensus_decode(r)?))
     }
 }
 
@@ -931,9 +881,7 @@ impl Encodable for sha256::Hash {
 
 impl Decodable for sha256::Hash {
     fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, Error> {
-        Ok(Self::from_byte_array(
-            <<Self as Hash>::Bytes>::consensus_decode(r)?,
-        ))
+        Ok(Self::from_byte_array(<<Self as Hash>::Bytes>::consensus_decode(r)?))
     }
 }
 
@@ -945,8 +893,6 @@ impl Encodable for TapLeafHash {
 
 impl Decodable for TapLeafHash {
     fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, Error> {
-        Ok(Self::from_byte_array(
-            <<Self as Hash>::Bytes>::consensus_decode(r)?,
-        ))
+        Ok(Self::from_byte_array(<<Self as Hash>::Bytes>::consensus_decode(r)?))
     }
 }

@@ -31,14 +31,10 @@ pub struct ScriptBuf(pub(in crate::blockdata::script) Vec<u8>);
 impl ScriptBuf {
     /// Creates a new empty script.
     #[inline]
-    pub const fn new() -> Self {
-        ScriptBuf(Vec::new())
-    }
+    pub const fn new() -> Self { ScriptBuf(Vec::new()) }
 
     /// Creates a new empty script with pre-allocated capacity.
-    pub fn with_capacity(capacity: usize) -> Self {
-        ScriptBuf(Vec::with_capacity(capacity))
-    }
+    pub fn with_capacity(capacity: usize) -> Self { ScriptBuf(Vec::with_capacity(capacity)) }
 
     /// Pre-allocates at least `additional_len` bytes if needed.
     ///
@@ -50,9 +46,7 @@ impl ScriptBuf {
     /// # Panics
     ///
     /// Panics if the new capacity exceeds `isize::MAX bytes`.
-    pub fn reserve(&mut self, additional_len: usize) {
-        self.0.reserve(additional_len);
-    }
+    pub fn reserve(&mut self, additional_len: usize) { self.0.reserve(additional_len); }
 
     /// Pre-allocates exactly `additional_len` bytes if needed.
     ///
@@ -67,31 +61,20 @@ impl ScriptBuf {
     /// # Panics
     ///
     /// Panics if the new capacity exceeds `isize::MAX bytes`.
-    pub fn reserve_exact(&mut self, additional_len: usize) {
-        self.0.reserve_exact(additional_len);
-    }
+    pub fn reserve_exact(&mut self, additional_len: usize) { self.0.reserve_exact(additional_len); }
 
     /// Returns a reference to unsized script.
-    pub fn as_script(&self) -> &Script {
-        Script::from_bytes(&self.0)
-    }
+    pub fn as_script(&self) -> &Script { Script::from_bytes(&self.0) }
 
     /// Returns a mutable reference to unsized script.
-    pub fn as_mut_script(&mut self) -> &mut Script {
-        Script::from_bytes_mut(&mut self.0)
-    }
+    pub fn as_mut_script(&mut self) -> &mut Script { Script::from_bytes_mut(&mut self.0) }
 
     /// Creates a new script builder
-    pub fn builder() -> Builder {
-        Builder::new()
-    }
+    pub fn builder() -> Builder { Builder::new() }
 
     /// Generates P2PK-type of scriptPubkey.
     pub fn new_p2pk(pubkey: &PublicKey) -> Self {
-        Builder::new()
-            .push_key(pubkey)
-            .push_opcode(OP_CHECKSIG)
-            .into_script()
+        Builder::new().push_key(pubkey).push_opcode(OP_CHECKSIG).into_script()
     }
 
     /// Generates P2PKH-type of scriptPubkey.
@@ -164,10 +147,7 @@ impl ScriptBuf {
         debug_assert!(program.len() >= 2 && program.len() <= 40);
         // In segwit v0, the program must be 20 or 32 bytes long.
         debug_assert!(version != WitnessVersion::V0 || program.len() == 20 || program.len() == 32);
-        Builder::new()
-            .push_opcode(version.into())
-            .push_slice(program)
-            .into_script()
+        Builder::new().push_opcode(version.into()).push_slice(program).into_script()
     }
 
     /// Creates the script code used for spending a P2WPKH output.
@@ -187,10 +167,7 @@ impl ScriptBuf {
 
     /// Generates OP_RETURN-type of scriptPubkey for the given data.
     pub fn new_op_return<T: AsRef<PushBytes>>(data: T) -> Self {
-        Builder::new()
-            .push_opcode(OP_RETURN)
-            .push_slice(data)
-            .into_script()
+        Builder::new().push_opcode(OP_RETURN).push_slice(data).into_script()
     }
 
     /// Creates a [`ScriptBuf`] from a hex string.
@@ -202,21 +179,15 @@ impl ScriptBuf {
     /// Converts byte vector into script.
     ///
     /// This method doesn't (re)allocate.
-    pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        ScriptBuf(bytes)
-    }
+    pub fn from_bytes(bytes: Vec<u8>) -> Self { ScriptBuf(bytes) }
 
     /// Converts the script into a byte vector.
     ///
     /// This method doesn't (re)allocate.
-    pub fn into_bytes(self) -> Vec<u8> {
-        self.0
-    }
+    pub fn into_bytes(self) -> Vec<u8> { self.0 }
 
     /// Adds a single opcode to the script.
-    pub fn push_opcode(&mut self, data: Opcode) {
-        self.0.push(data.to_u8());
-    }
+    pub fn push_opcode(&mut self, data: Opcode) { self.0.push(data.to_u8()); }
 
     /// Adds instructions to push some arbitrary data onto the stack.
     pub fn push_slice<T: AsRef<PushBytes>>(&mut self, data: T) {
@@ -300,9 +271,7 @@ impl ScriptBuf {
     /// This function needs to iterate over the script to find the last instruction. Prefer
     /// `Builder` if you're creating the script from scratch or if you want to push `OP_VERIFY`
     /// multiple times.
-    pub fn scan_and_push_verify(&mut self) {
-        self.push_verify(self.last_opcode());
-    }
+    pub fn scan_and_push_verify(&mut self) { self.push_verify(self.last_opcode()); }
 
     /// Adds an `OP_VERIFY` to the script or changes the most-recently-added opcode to `VERIFY`
     /// alternative.

@@ -103,9 +103,7 @@ impl std::error::Error for Error {
 }
 
 impl From<io::Error> for Error {
-    fn from(io: io::Error) -> Self {
-        Error::Io(io)
-    }
+    fn from(io: io::Error) -> Self { Error::Io(io) }
 }
 
 /// A block filter, as described by BIP 158.
@@ -127,11 +125,7 @@ impl FilterHash {
 
 impl BlockFilter {
     /// Creates a new filter from pre-computed data.
-    pub fn new(content: &[u8]) -> BlockFilter {
-        BlockFilter {
-            content: content.to_vec(),
-        }
-    }
+    pub fn new(content: &[u8]) -> BlockFilter { BlockFilter { content: content.to_vec() } }
 
     /// Computes a SCRIPT_FILTER that contains spent and output scripts.
     pub fn new_script_filter<M, S>(block: &Block, script_for_coin: M) -> Result<BlockFilter, Error>
@@ -228,14 +222,10 @@ impl<'a, W: Write> BlockFilterWriter<'a, W> {
     }
 
     /// Adds an arbitrary element to filter.
-    pub fn add_element(&mut self, data: &[u8]) {
-        self.writer.add_element(data);
-    }
+    pub fn add_element(&mut self, data: &[u8]) { self.writer.add_element(data); }
 
     /// Writes the block filter.
-    pub fn finish(&mut self) -> Result<usize, io::Error> {
-        self.writer.finish()
-    }
+    pub fn finish(&mut self) -> Result<usize, io::Error> { self.writer.finish() }
 }
 
 /// Reads and interprets a block filter.
@@ -249,9 +239,7 @@ impl BlockFilterReader {
         let block_hash_as_int = block_hash.to_byte_array();
         let k0 = u64::from_le_bytes(block_hash_as_int[0..8].try_into().expect("8 byte slice"));
         let k1 = u64::from_le_bytes(block_hash_as_int[8..16].try_into().expect("8 byte slice"));
-        BlockFilterReader {
-            reader: GcsFilterReader::new(k0, k1, M, P),
-        }
+        BlockFilterReader { reader: GcsFilterReader::new(k0, k1, M, P) }
     }
 
     /// Returns true if any query matches against this [`BlockFilterReader`].
@@ -284,10 +272,7 @@ pub struct GcsFilterReader {
 impl GcsFilterReader {
     /// Creates a new [`GcsFilterReader`] with specific seed to siphash.
     pub fn new(k0: u64, k1: u64, m: u64, p: u8) -> GcsFilterReader {
-        GcsFilterReader {
-            filter: GcsFilter::new(k0, k1, p),
-            m,
-        }
+        GcsFilterReader { filter: GcsFilter::new(k0, k1, p), m }
     }
 
     /// Returns true if any query matches against this [`GcsFilterReader`].
@@ -300,9 +285,8 @@ impl GcsFilterReader {
         let n_elements: VarInt = Decodable::consensus_decode(reader).unwrap_or(VarInt(0));
         // map hashes to [0, n_elements << grp]
         let nm = n_elements.0 * self.m;
-        let mut mapped = query
-            .map(|e| map_to_range(self.filter.hash(e.borrow()), nm))
-            .collect::<Vec<_>>();
+        let mut mapped =
+            query.map(|e| map_to_range(self.filter.hash(e.borrow()), nm)).collect::<Vec<_>>();
         // sort
         mapped.sort_unstable();
         if mapped.is_empty() {
@@ -320,14 +304,13 @@ impl GcsFilterReader {
             loop {
                 match data.cmp(&p) {
                     Ordering::Equal => return Ok(true),
-                    Ordering::Less => {
+                    Ordering::Less =>
                         if remaining > 0 {
                             data += self.filter.golomb_rice_decode(&mut reader)?;
                             remaining -= 1;
                         } else {
                             return Ok(false);
-                        }
-                    }
+                        },
                     Ordering::Greater => break,
                 }
             }
@@ -345,9 +328,8 @@ impl GcsFilterReader {
         let n_elements: VarInt = Decodable::consensus_decode(reader).unwrap_or(VarInt(0));
         // map hashes to [0, n_elements << grp]
         let nm = n_elements.0 * self.m;
-        let mut mapped = query
-            .map(|e| map_to_range(self.filter.hash(e.borrow()), nm))
-            .collect::<Vec<_>>();
+        let mut mapped =
+            query.map(|e| map_to_range(self.filter.hash(e.borrow()), nm)).collect::<Vec<_>>();
         // sort
         mapped.sort_unstable();
         mapped.dedup();
@@ -366,14 +348,13 @@ impl GcsFilterReader {
             loop {
                 match data.cmp(&p) {
                     Ordering::Equal => break,
-                    Ordering::Less => {
+                    Ordering::Less =>
                         if remaining > 0 {
                             data += self.filter.golomb_rice_decode(&mut reader)?;
                             remaining -= 1;
                         } else {
                             return Ok(false);
-                        }
-                    }
+                        },
                     Ordering::Greater => return Ok(false),
                 }
             }
@@ -383,9 +364,7 @@ impl GcsFilterReader {
 }
 
 /// Fast reduction of hash to [0, nm) range.
-fn map_to_range(hash: u64, nm: u64) -> u64 {
-    ((hash as u128 * nm as u128) >> 64) as u64
-}
+fn map_to_range(hash: u64, nm: u64) -> u64 { ((hash as u128 * nm as u128) >> 64) as u64 }
 
 /// Golomb-Rice encoded filter writer.
 pub struct GcsFilterWriter<'a, W> {
@@ -398,12 +377,7 @@ pub struct GcsFilterWriter<'a, W> {
 impl<'a, W: Write> GcsFilterWriter<'a, W> {
     /// Creates a new [`GcsFilterWriter`] wrapping a generic writer, with specific seed to siphash.
     pub fn new(writer: &'a mut W, k0: u64, k1: u64, m: u64, p: u8) -> GcsFilterWriter<'a, W> {
-        GcsFilterWriter {
-            filter: GcsFilter::new(k0, k1, p),
-            writer,
-            elements: BTreeSet::new(),
-            m,
-        }
+        GcsFilterWriter { filter: GcsFilter::new(k0, k1, p), writer, elements: BTreeSet::new(), m }
     }
 
     /// Adds data to the filter.
@@ -449,9 +423,7 @@ struct GcsFilter {
 
 impl GcsFilter {
     /// Creates a new [`GcsFilter`].
-    fn new(k0: u64, k1: u64, p: u8) -> GcsFilter {
-        GcsFilter { k0, k1, p }
-    }
+    fn new(k0: u64, k1: u64, p: u8) -> GcsFilter { GcsFilter { k0, k1, p } }
 
     /// Golomb-Rice encodes a number `n` to a bit stream (parameter 2^k).
     fn golomb_rice_encode<W>(
@@ -503,11 +475,7 @@ pub struct BitStreamReader<'a, R: ?Sized> {
 impl<'a, R: BufRead + ?Sized> BitStreamReader<'a, R> {
     /// Creates a new [`BitStreamReader`] that reads bitwise from a given `reader`.
     pub fn new(reader: &'a mut R) -> BitStreamReader<'a, R> {
-        BitStreamReader {
-            buffer: [0u8],
-            reader,
-            offset: 8,
-        }
+        BitStreamReader { buffer: [0u8], reader, offset: 8 }
     }
 
     /// Reads nbit bits, returning the bits in a `u64` starting with the rightmost bit.
@@ -554,11 +522,7 @@ pub struct BitStreamWriter<'a, W> {
 impl<'a, W: Write> BitStreamWriter<'a, W> {
     /// Creates a new [`BitStreamWriter`] that writes bitwise to a given `writer`.
     pub fn new(writer: &'a mut W) -> BitStreamWriter<'a, W> {
-        BitStreamWriter {
-            buffer: [0u8],
-            writer,
-            offset: 0,
-        }
+        BitStreamWriter { buffer: [0u8], writer, offset: 0 }
     }
 
     /// Writes nbits bits from data.

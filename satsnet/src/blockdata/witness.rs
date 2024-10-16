@@ -184,11 +184,7 @@ impl Decodable for Witness {
             content.truncate(cursor);
             // Index space is now at the end of the Vec
             content.rotate_left(witness_index_space);
-            Ok(Witness {
-                content,
-                witness_elements,
-                indices_start: cursor - witness_index_space,
-            })
+            Ok(Witness { content, witness_elements, indices_start: cursor - witness_index_space })
         }
     }
 }
@@ -198,9 +194,8 @@ impl Decodable for Witness {
 fn encode_cursor(bytes: &mut [u8], start_of_indices: usize, index: usize, value: usize) {
     let start = start_of_indices + index * 4;
     let end = start + 4;
-    bytes[start..end].copy_from_slice(&u32::to_ne_bytes(
-        value.try_into().expect("Larger than u32"),
-    ));
+    bytes[start..end]
+        .copy_from_slice(&u32::to_ne_bytes(value.try_into().expect("Larger than u32")));
 }
 
 #[inline]
@@ -240,11 +235,7 @@ impl Witness {
     /// Creates a new empty [`Witness`].
     #[inline]
     pub const fn new() -> Self {
-        Witness {
-            content: Vec::new(),
-            witness_elements: 0,
-            indices_start: 0,
-        }
+        Witness { content: Vec::new(), witness_elements: 0, indices_start: 0 }
     }
 
     /// Creates a witness required to spend a P2WPKH output.
@@ -289,36 +280,22 @@ impl Witness {
             cursor += elem.as_ref().len();
         }
 
-        Witness {
-            witness_elements,
-            content,
-            indices_start: content_size,
-        }
+        Witness { witness_elements, content, indices_start: content_size }
     }
 
     /// Convenience method to create an array of byte-arrays from this witness.
-    pub fn to_vec(&self) -> Vec<Vec<u8>> {
-        self.iter().map(|s| s.to_vec()).collect()
-    }
+    pub fn to_vec(&self) -> Vec<Vec<u8>> { self.iter().map(|s| s.to_vec()).collect() }
 
     /// Returns `true` if the witness contains no element.
-    pub fn is_empty(&self) -> bool {
-        self.witness_elements == 0
-    }
+    pub fn is_empty(&self) -> bool { self.witness_elements == 0 }
 
     /// Returns a struct implementing [`Iterator`].
     pub fn iter(&self) -> Iter {
-        Iter {
-            inner: self.content.as_slice(),
-            indices_start: self.indices_start,
-            current_index: 0,
-        }
+        Iter { inner: self.content.as_slice(), indices_start: self.indices_start, current_index: 0 }
     }
 
     /// Returns the number of elements this witness holds.
-    pub fn len(&self) -> usize {
-        self.witness_elements
-    }
+    pub fn len(&self) -> usize { self.witness_elements }
 
     /// Returns the number of bytes this witness contributes to a transactions total size.
     pub fn size(&self) -> usize {
@@ -354,8 +331,7 @@ impl Witness {
         let element_len_varint = VarInt::from(new_element.len());
         let current_content_len = self.content.len();
         let new_item_total_len = element_len_varint.size() + new_element.len();
-        self.content
-            .resize(current_content_len + new_item_total_len + 4, 0);
+        self.content.resize(current_content_len + new_item_total_len + 4, 0);
 
         self.content[previous_content_end..].rotate_right(new_item_total_len);
         self.indices_start += new_item_total_len;
@@ -442,9 +418,7 @@ impl Witness {
 impl Index<usize> for Witness {
     type Output = [u8];
 
-    fn index(&self, index: usize) -> &Self::Output {
-        self.nth(index).expect("Out of Bounds")
-    }
+    fn index(&self, index: usize) -> &Self::Output { self.nth(index).expect("Out of Bounds") }
 }
 
 impl<'a> Iterator for Iter<'a> {
@@ -473,9 +447,7 @@ impl<'a> IntoIterator for &'a Witness {
     type IntoIter = Iter<'a>;
     type Item = &'a [u8];
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
 // Serde keep backward compatibility with old Vec<Vec<u8>> format
@@ -540,9 +512,8 @@ impl<'de> serde::Deserialize<'de> for Witness {
                                 &"a valid hex character",
                             ),
                         },
-                        OddLengthString(ref e) => {
-                            de::Error::invalid_length(e.length(), &"an even length string")
-                        }
+                        OddLengthString(ref e) =>
+                            de::Error::invalid_length(e.length(), &"an even length string"),
                     })?;
                     ret.push(vec);
                 }
@@ -560,31 +531,21 @@ impl<'de> serde::Deserialize<'de> for Witness {
 }
 
 impl From<Vec<Vec<u8>>> for Witness {
-    fn from(vec: Vec<Vec<u8>>) -> Self {
-        Witness::from_slice(&vec)
-    }
+    fn from(vec: Vec<Vec<u8>>) -> Self { Witness::from_slice(&vec) }
 }
 
 impl From<&[&[u8]]> for Witness {
-    fn from(slice: &[&[u8]]) -> Self {
-        Witness::from_slice(slice)
-    }
+    fn from(slice: &[&[u8]]) -> Self { Witness::from_slice(slice) }
 }
 
 impl From<&[Vec<u8>]> for Witness {
-    fn from(slice: &[Vec<u8>]) -> Self {
-        Witness::from_slice(slice)
-    }
+    fn from(slice: &[Vec<u8>]) -> Self { Witness::from_slice(slice) }
 }
 
 impl From<Vec<&[u8]>> for Witness {
-    fn from(vec: Vec<&[u8]>) -> Self {
-        Witness::from_slice(&vec)
-    }
+    fn from(vec: Vec<&[u8]>) -> Self { Witness::from_slice(&vec) }
 }
 
 impl Default for Witness {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

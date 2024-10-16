@@ -17,9 +17,7 @@ use units::parse;
 use crate::blockdata::block::BlockHash;
 use crate::consensus::encode::{self, Decodable, Encodable};
 use crate::consensus::Params;
-use crate::error::{
-    ContainsPrefixError, MissingPrefixError, ParseIntError, PrefixedHexError, UnprefixedHexError,
-};
+use crate::error::{ContainsPrefixError, MissingPrefixError, ParseIntError, PrefixedHexError, UnprefixedHexError};
 
 /// Implement traits and methods shared by `Target` and `Work`.
 macro_rules! do_impl {
@@ -43,33 +41,25 @@ macro_rules! do_impl {
             #[doc = stringify!($ty)]
             #[doc = "` from a big-endian byte array."]
             #[inline]
-            pub fn from_be_bytes(bytes: [u8; 32]) -> $ty {
-                $ty(U256::from_be_bytes(bytes))
-            }
+            pub fn from_be_bytes(bytes: [u8; 32]) -> $ty { $ty(U256::from_be_bytes(bytes)) }
 
             #[doc = "Creates `"]
             #[doc = stringify!($ty)]
             #[doc = "` from a little-endian byte array."]
             #[inline]
-            pub fn from_le_bytes(bytes: [u8; 32]) -> $ty {
-                $ty(U256::from_le_bytes(bytes))
-            }
+            pub fn from_le_bytes(bytes: [u8; 32]) -> $ty { $ty(U256::from_le_bytes(bytes)) }
 
             #[doc = "Converts `"]
             #[doc = stringify!($ty)]
             #[doc = "` to a big-endian byte array."]
             #[inline]
-            pub fn to_be_bytes(self) -> [u8; 32] {
-                self.0.to_be_bytes()
-            }
+            pub fn to_be_bytes(self) -> [u8; 32] { self.0.to_be_bytes() }
 
             #[doc = "Converts `"]
             #[doc = stringify!($ty)]
             #[doc = "` to a little-endian byte array."]
             #[inline]
-            pub fn to_le_bytes(self) -> [u8; 32] {
-                self.0.to_le_bytes()
-            }
+            pub fn to_le_bytes(self) -> [u8; 32] { self.0.to_le_bytes() }
         }
 
         impl fmt::Display for $ty {
@@ -105,9 +95,7 @@ pub struct Work(U256);
 
 impl Work {
     /// Converts this [`Work`] to [`Target`].
-    pub fn to_target(self) -> Target {
-        Target(self.0.inverse())
-    }
+    pub fn to_target(self) -> Target { Target(self.0.inverse()) }
 
     /// Returns log2 of this work.
     ///
@@ -115,24 +103,18 @@ impl Work {
     /// used mainly for informative and displaying purposes, similarly to Bitcoin Core's
     /// `log2_work` output in its logs.
     #[cfg(feature = "std")]
-    pub fn log2(self) -> f64 {
-        self.0.to_f64().log2()
-    }
+    pub fn log2(self) -> f64 { self.0.to_f64().log2() }
 }
 do_impl!(Work);
 
 impl Add for Work {
     type Output = Work;
-    fn add(self, rhs: Self) -> Self {
-        Work(self.0 + rhs.0)
-    }
+    fn add(self, rhs: Self) -> Self { Work(self.0 + rhs.0) }
 }
 
 impl Sub for Work {
     type Output = Work;
-    fn sub(self, rhs: Self) -> Self {
-        Work(self.0 - rhs.0)
-    }
+    fn sub(self, rhs: Self) -> Self { Work(self.0 - rhs.0) }
 }
 
 /// A 256 bit integer representing target.
@@ -250,9 +232,7 @@ impl Target {
     /// "Work" is defined as the work done to mine a block with this target value (recorded in the
     /// block header in compact form as nBits). This is not the same as the difficulty to mine a
     /// block with this target (see `Self::difficulty`).
-    pub fn to_work(self) -> Work {
-        Work(self.0.inverse())
-    }
+    pub fn to_work(self) -> Work { Work(self.0.inverse()) }
 
     /// Computes the popular "difficulty" measure for mining.
     ///
@@ -298,16 +278,12 @@ impl Target {
     ///
     /// [`difficulty`]: Target::difficulty
     #[cfg_attr(all(test, mutate), mutate)]
-    pub fn difficulty_float(&self) -> f64 {
-        TARGET_MAX_F64 / self.0.to_f64()
-    }
+    pub fn difficulty_float(&self) -> f64 { TARGET_MAX_F64 / self.0.to_f64() }
 
     /// Computes the minimum valid [`Target`] threshold allowed for a block in which a difficulty
     /// adjustment occurs.
     #[deprecated(since = "0.32.0", note = "use min_transition_threshold instead")]
-    pub fn min_difficulty_transition_threshold(&self) -> Self {
-        self.min_transition_threshold()
-    }
+    pub fn min_difficulty_transition_threshold(&self) -> Self { self.min_transition_threshold() }
 
     /// Computes the maximum valid [`Target`] threshold allowed for a block in which a difficulty
     /// adjustment occurs.
@@ -325,9 +301,7 @@ impl Target {
     /// # Returns
     ///
     /// In line with Bitcoin Core this function may return a target value of zero.
-    pub fn min_transition_threshold(&self) -> Self {
-        Self(self.0 >> 2)
-    }
+    pub fn min_transition_threshold(&self) -> Self { Self(self.0 >> 2) }
 
     /// Computes the maximum valid [`Target`] threshold allowed for a block in which a difficulty
     /// adjustment occurs.
@@ -354,9 +328,7 @@ impl Target {
     ///
     /// The return value should be checked against [`Params::max_attainable_target`] or use one of
     /// the `Target::MAX_ATTAINABLE_FOO` constants.
-    pub fn max_transition_threshold_unchecked(&self) -> Self {
-        Self(self.0 << 2)
-    }
+    pub fn max_transition_threshold_unchecked(&self) -> Self { Self(self.0 << 2) }
 }
 do_impl!(Target);
 
@@ -397,20 +369,14 @@ impl CompactTarget {
     }
 
     /// Creates a [`CompactTarget`] from a consensus encoded `u32`.
-    pub fn from_consensus(bits: u32) -> Self {
-        Self(bits)
-    }
+    pub fn from_consensus(bits: u32) -> Self { Self(bits) }
 
     /// Returns the consensus encoded `u32` representation of this [`CompactTarget`].
-    pub fn to_consensus(self) -> u32 {
-        self.0
-    }
+    pub fn to_consensus(self) -> u32 { self.0 }
 }
 
 impl From<CompactTarget> for Target {
-    fn from(c: CompactTarget) -> Self {
-        Target::from_compact(c)
-    }
+    fn from(c: CompactTarget) -> Self { Target::from_compact(c) }
 }
 
 impl Encodable for CompactTarget {
@@ -429,16 +395,12 @@ impl Decodable for CompactTarget {
 
 impl LowerHex for CompactTarget {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        LowerHex::fmt(&self.0, f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { LowerHex::fmt(&self.0, f) }
 }
 
 impl UpperHex for CompactTarget {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        UpperHex::fmt(&self.0, f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { UpperHex::fmt(&self.0, f) }
 }
 
 /// Big-endian 256 bit integer type.
@@ -447,10 +409,8 @@ impl UpperHex for CompactTarget {
 struct U256(u128, u128);
 
 impl U256 {
-    const MAX: U256 = U256(
-        0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff,
-        0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff,
-    );
+    const MAX: U256 =
+        U256(0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff, 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff);
 
     const ZERO: U256 = U256(0, 0);
 
@@ -478,7 +438,7 @@ impl U256 {
 
     // Caller to ensure `s` does not contain a prefix.
     fn from_hex_internal(s: &str) -> Result<Self, ParseIntError> {
-        let (high, low) = if s.len() < 32 {
+        let (high, low) = if s.len() <= 32 {
             let low = parse::hex_u128(s)?;
             (0, low)
         } else {
@@ -555,34 +515,22 @@ impl U256 {
     }
 
     #[cfg_attr(all(test, mutate), mutate)]
-    fn is_zero(&self) -> bool {
-        self.0 == 0 && self.1 == 0
-    }
+    fn is_zero(&self) -> bool { self.0 == 0 && self.1 == 0 }
 
     #[cfg_attr(all(test, mutate), mutate)]
-    fn is_one(&self) -> bool {
-        self.0 == 0 && self.1 == 1
-    }
+    fn is_one(&self) -> bool { self.0 == 0 && self.1 == 1 }
 
     #[cfg_attr(all(test, mutate), mutate)]
-    fn is_max(&self) -> bool {
-        self.0 == u128::MAX && self.1 == u128::MAX
-    }
+    fn is_max(&self) -> bool { self.0 == u128::MAX && self.1 == u128::MAX }
 
     /// Returns the low 32 bits.
-    fn low_u32(&self) -> u32 {
-        self.low_u128() as u32
-    }
+    fn low_u32(&self) -> u32 { self.low_u128() as u32 }
 
     /// Returns the low 64 bits.
-    fn low_u64(&self) -> u64 {
-        self.low_u128() as u64
-    }
+    fn low_u64(&self) -> u64 { self.low_u128() as u64 }
 
     /// Returns the low 128 bits.
-    fn low_u128(&self) -> u128 {
-        self.1
-    }
+    fn low_u128(&self) -> u128 { self.1 }
 
     /// Returns this `U256` as a `u128` saturating to `u128::MAX` if `self` is too big.
     // Matagen gives false positive because >= and > both return u128::MAX
@@ -615,12 +563,8 @@ impl U256 {
     #[cfg_attr(all(test, mutate), mutate)]
     fn mul_u64(self, rhs: u64) -> (U256, bool) {
         let mut carry: u128 = 0;
-        let mut split_le = [
-            self.1 as u64,
-            (self.1 >> 64) as u64,
-            self.0 as u64,
-            (self.0 >> 64) as u64,
-        ];
+        let mut split_le =
+            [self.1 as u64, (self.1 >> 64) as u64, self.0 as u64, (self.0 >> 64) as u64];
 
         for word in &mut split_le {
             // This will not overflow, for proof see https://github.com/rust-bitcoin/rust-bitcoin/pull/1496#issuecomment-1365938572
@@ -759,6 +703,15 @@ impl U256 {
         ret
     }
 
+    /// Wrapping (modular) multiplication. Computes `self * rhs`, wrapping around at the boundary of
+    /// the type.
+    #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[cfg(test)]
+    fn wrapping_mul(self, rhs: Self) -> Self {
+        let (ret, _overflow) = self.overflowing_mul(rhs);
+        ret
+    }
+
     /// Returns `self` incremented by 1 wrapping around at the boundary of the type.
     #[must_use = "this returns the result of the increment, without modifying the original"]
     #[cfg_attr(all(test, mutate), mutate)]
@@ -880,11 +833,7 @@ impl U256 {
         // If self is 0, exponent should be 0 (special meaning) and mantissa will end up 0 too
         // Otherwise, (255 - n) + 1022 so it simplifies to 1277 - n
         // 1023 and 1022 are the cutoffs for the exponent having the msb next to the decimal point
-        let exponent = if self == Self::ZERO {
-            0
-        } else {
-            1277 - leading_zeroes as u64
-        };
+        let exponent = if self == Self::ZERO { 0 } else { 1277 - leading_zeroes as u64 };
         // Step 7: sign bit is always 0, exponent is shifted into place
         // Use addition instead of bitwise OR to saturate the exponent if mantissa overflows
         f64::from_bits((exponent << 52) + mantissa)
@@ -896,9 +845,7 @@ impl U256 {
 const TARGET_MAX_F64: f64 = 2.695953529101131e67;
 
 impl<T: Into<u128>> From<T> for U256 {
-    fn from(x: T) -> Self {
-        U256(0, x.into())
-    }
+    fn from(x: T) -> Self { U256(0, x.into()) }
 }
 
 impl Add for U256 {
@@ -930,38 +877,28 @@ impl Mul for U256 {
 
 impl Div for U256 {
     type Output = Self;
-    fn div(self, rhs: Self) -> Self {
-        self.div_rem(rhs).0
-    }
+    fn div(self, rhs: Self) -> Self { self.div_rem(rhs).0 }
 }
 
 impl Rem for U256 {
     type Output = Self;
-    fn rem(self, rhs: Self) -> Self {
-        self.div_rem(rhs).1
-    }
+    fn rem(self, rhs: Self) -> Self { self.div_rem(rhs).1 }
 }
 
 impl Not for U256 {
     type Output = Self;
 
-    fn not(self) -> Self {
-        U256(!self.0, !self.1)
-    }
+    fn not(self) -> Self { U256(!self.0, !self.1) }
 }
 
 impl Shl<u32> for U256 {
     type Output = Self;
-    fn shl(self, shift: u32) -> U256 {
-        self.wrapping_shl(shift)
-    }
+    fn shl(self, shift: u32) -> U256 { self.wrapping_shl(shift) }
 }
 
 impl Shr<u32> for U256 {
     type Output = Self;
-    fn shr(self, shift: u32) -> U256 {
-        self.wrapping_shr(shift)
-    }
+    fn shr(self, shift: u32) -> U256 { self.wrapping_shr(shift) }
 }
 
 impl fmt::Display for U256 {
@@ -975,9 +912,7 @@ impl fmt::Display for U256 {
 }
 
 impl fmt::Debug for U256 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:#x}", self)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:#x}", self) }
 }
 
 macro_rules! impl_hex {
@@ -1001,9 +936,7 @@ impl crate::serde::Serialize for U256 {
         struct DisplayHex(U256);
 
         impl fmt::Display for DisplayHex {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "{:x}", self.0)
-            }
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:x}", self.0) }
         }
 
         if serializer.is_human_readable() {
@@ -1076,9 +1009,7 @@ impl<'de> crate::serde::Deserialize<'de> for U256 {
                 where
                     E: serde::de::Error,
                 {
-                    let b = v
-                        .try_into()
-                        .map_err(|_| de::Error::invalid_length(v.len(), &self))?;
+                    let b = v.try_into().map_err(|_| de::Error::invalid_length(v.len(), &self))?;
                     Ok(U256::from_be_bytes(b))
                 }
             }
