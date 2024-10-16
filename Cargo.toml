@@ -1,5 +1,5 @@
 [workspace]
-members = ["satsnet", "hashes", "internals", "io", "units", "base58"]
+members = ["satsnet", "hashes", "internals", "io", "base58"]
 resolver = "2"
 
 [patch.crates-io.satsnet-base58ck]
@@ -16,6 +16,3 @@ path = "internals"
 
 [patch.crates-io.satsnet-io]
 path = "io"
-
-[patch.crates-io.satsnet-units]
-path = "units"
