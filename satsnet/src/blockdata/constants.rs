@@ -21,7 +21,7 @@ use crate::consensus::Params;
 use crate::internal_macros::impl_bytes_newtype;
 use crate::network::Network;
 use crate::pow::CompactTarget;
-use crate::Amount;
+use crate::{Amount, ScriptBuf};
 
 /// How many seconds between blocks we expect on average.
 pub const TARGET_BLOCK_SPACING: u32 = 600;
@@ -52,7 +52,7 @@ pub const MAX_SCRIPTNUM_VALUE: u32 = 0x80000000; // 2^31
 pub const COINBASE_MATURITY: u32 = 100;
 
 /// Constructs and returns the coinbase (and only) transaction of the Bitcoin genesis block.
-fn bitcoin_genesis_tx() -> Transaction {
+fn bitcoin_genesis_tx(params: impl AsRef<Params>) -> Transaction {
     // Base
     let mut ret = Transaction {
         version: transaction::Version::ONE,
@@ -61,11 +61,25 @@ fn bitcoin_genesis_tx() -> Transaction {
         output: vec![],
     };
 
+    let genesis_msg = match params.as_ref().network {
+        Network::Testnet4 => b"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks",
+        _ => b"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks",
+    };
+
+    // let script_bytes = hex!("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f");
+    let script_bytes = match params.as_ref().network {
+        Network::Testnet4 => hex!("000000000000000000000000000000000000000000000000000000000000000000").to_vec(),
+        _ => hex!("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f").to_vec(),
+    };
+    let mut script_bytes_buf = script::PushBytesBuf::new();
+    script_bytes_buf.extend_from_slice(&script_bytes).unwrap();
+    let script_bytes =script_bytes_buf.as_push_bytes();
+
     // Inputs
     let in_script = script::Builder::new()
         .push_int(486604799)
         .push_int_non_minimal(4)
-        .push_slice(b"The Times 03/Jan/2009 Chancellor on brink of second bailout for banks")
+        .push_slice(genesis_msg)
         .into_script();
     ret.input.push(TxIn {
         previous_output: OutPoint::null(),
@@ -75,7 +89,6 @@ fn bitcoin_genesis_tx() -> Transaction {
     });
 
     // Outputs
-    let script_bytes = hex!("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f");
     let out_script =
         script::Builder::new().push_slice(script_bytes).push_opcode(OP_CHECKSIG).into_script();
     ret.output.push(TxOut { value: Amount::from_sat(50 * 100_000_000), script_pubkey: out_script });
@@ -86,7 +99,7 @@ fn bitcoin_genesis_tx() -> Transaction {
 
 /// Constructs and returns the genesis block.
 pub fn genesis_block(params: impl AsRef<Params>) -> Block {
-    let txdata = vec![bitcoin_genesis_tx()];
+    let txdata = vec![bitcoin_genesis_tx(params.as_ref())];
     let hash: sha256d::Hash = txdata[0].compute_txid().into();
     let merkle_root = hash.into();
     match params.as_ref().network {
