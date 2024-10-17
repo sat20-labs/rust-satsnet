@@ -8,8 +8,8 @@
 //!
 //! ```rust
 //! # #[cfg(feature = "rand-std")] {
-//! use bitcoin::{Address, PublicKey, Network};
-//! use bitcoin::secp256k1::{rand, Secp256k1};
+//! use satsnet::{Address, PublicKey, Network};
+//! use satsnet::secp256k1::{rand, Secp256k1};
 //!
 //! // Generate random key pair.
 //! let s = Secp256k1::new();
@@ -279,8 +279,8 @@ pub enum AddressData {
 ///
 /// ```rust
 /// use std::str::FromStr;
-/// use bitcoin::{Address, Network};
-/// use bitcoin::address::{NetworkUnchecked, NetworkChecked};
+/// use satsnet::{Address, Network};
+/// use satsnet::address::{NetworkUnchecked, NetworkChecked};
 ///
 /// // variant 1
 /// let address: Address<NetworkUnchecked> = "32iVBEu4dxkUQk9dJbZUiBiQdmypcEyJRf".parse().unwrap();
@@ -304,7 +304,7 @@ pub enum AddressData {
 ///
 /// ```
 /// # use std::str::FromStr;
-/// # use bitcoin::address::{Address, NetworkChecked};
+/// # use satsnet::address::{Address, NetworkChecked};
 /// let address: Address<NetworkChecked> = Address::from_str("132F25rTsvBdp9JzLLBHP5mvGY66i1xdiM")
 ///                .unwrap().assume_checked();
 /// assert_eq!(address.to_string(), "132F25rTsvBdp9JzLLBHP5mvGY66i1xdiM");
@@ -312,7 +312,7 @@ pub enum AddressData {
 ///
 /// ```ignore
 /// # use std::str::FromStr;
-/// # use bitcoin::address::{Address, NetworkChecked};
+/// # use satsnet::address::{Address, NetworkChecked};
 /// let address: Address<NetworkUnchecked> = Address::from_str("132F25rTsvBdp9JzLLBHP5mvGY66i1xdiM")
 ///                .unwrap();
 /// let s = address.to_string(); // does not compile
@@ -324,7 +324,7 @@ pub enum AddressData {
 ///
 /// ```
 /// # use std::str::FromStr;
-/// # use bitcoin::address::{Address, NetworkUnchecked};
+/// # use satsnet::address::{Address, NetworkUnchecked};
 /// let address: Address<NetworkUnchecked> = Address::from_str("132F25rTsvBdp9JzLLBHP5mvGY66i1xdiM")
 ///                .unwrap();
 /// assert_eq!(format!("{:?}", address), "Address<NetworkUnchecked>(132F25rTsvBdp9JzLLBHP5mvGY66i1xdiM)");
@@ -332,7 +332,7 @@ pub enum AddressData {
 ///
 /// ```
 /// # use std::str::FromStr;
-/// # use bitcoin::address::{Address, NetworkChecked};
+/// # use satsnet::address::{Address, NetworkChecked};
 /// let address: Address<NetworkChecked> = Address::from_str("132F25rTsvBdp9JzLLBHP5mvGY66i1xdiM")
 ///                .unwrap().assume_checked();
 /// assert_eq!(format!("{:?}", address), "132F25rTsvBdp9JzLLBHP5mvGY66i1xdiM");
@@ -607,7 +607,7 @@ impl Address {
     /// ```
     /// # use core::fmt::Write;
     /// # const ADDRESS: &str = "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4";
-    /// # let address = ADDRESS.parse::<bitcoin::Address<_>>().unwrap().assume_checked();
+    /// # let address = ADDRESS.parse::<satsnet::Address<_>>().unwrap().assume_checked();
     /// # let mut writer = String::new();
     /// # // magic trick to make error handling look better
     /// # (|| -> Result<(), core::fmt::Error> {
@@ -692,8 +692,8 @@ impl Address<NetworkUnchecked> {
     /// network a simple comparison is not enough anymore. Instead this function can be used.
     ///
     /// ```rust
-    /// use bitcoin::{Address, Network};
-    /// use bitcoin::address::NetworkUnchecked;
+    /// use satsnet::{Address, Network};
+    /// use satsnet::address::NetworkUnchecked;
     ///
     /// let address: Address<NetworkUnchecked> = "2N83imGV3gPwBzKJQvWJ7cRUY2SpUyU6A5e".parse().unwrap();
     /// assert!(address.is_valid_for_network(Network::Testnet));
@@ -730,8 +730,8 @@ impl Address<NetworkUnchecked> {
     ///  # Examples
     ///
     /// ```
-    /// use bitcoin::address::{NetworkChecked, NetworkUnchecked, ParseError};
-    /// use bitcoin::{Address, Network};
+    /// use satsnet::address::{NetworkChecked, NetworkUnchecked, ParseError};
+    /// use satsnet::{Address, Network};
     ///
     /// const ADDR: &str = "bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs";
     ///

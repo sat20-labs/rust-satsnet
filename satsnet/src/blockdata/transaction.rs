@@ -89,9 +89,9 @@ impl OutPoint {
     /// # Examples
     ///
     /// ```rust
-    /// use bitcoin::consensus::params;
-    /// use bitcoin::constants::genesis_block;
-    /// use bitcoin::Network;
+    /// use satsnet::consensus::params;
+    /// use satsnet::constants::genesis_block;
+    /// use satsnet::Network;
     ///
     /// let block = genesis_block(&params::MAINNET);
     /// let tx = &block.txdata[0];

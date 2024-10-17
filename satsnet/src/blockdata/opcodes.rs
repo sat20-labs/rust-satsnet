@@ -39,7 +39,7 @@ macro_rules! all_opcodes {
     ($($op:ident => $val:expr, $doc:expr);*) => {
         /// Enables wildcard imports to bring into scope all opcodes and nothing else.
         ///
-        /// The `all` module is provided so one can use a wildcard import `use bitcoin::opcodes::all::*` to
+        /// The `all` module is provided so one can use a wildcard import `use satsnet::opcodes::all::*` to
         /// get all the `OP_FOO` opcodes without getting other types defined in `opcodes` (e.g. `Opcode`, `Class`).
         ///
         /// This module is guaranteed to never contain anything except opcode constants and all opcode

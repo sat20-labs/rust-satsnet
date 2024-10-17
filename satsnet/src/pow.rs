@@ -706,14 +706,8 @@ impl U256 {
     /// Wrapping (modular) multiplication. Computes `self * rhs`, wrapping around at the boundary of
     /// the type.
     #[must_use = "this returns the result of the operation, without modifying the original"]
-    #[cfg(test)]
-    fn wrapping_mul(self, rhs: Self) -> Self {
-        let (ret, _overflow) = self.overflowing_mul(rhs);
-        ret
-    }
 
     /// Returns `self` incremented by 1 wrapping around at the boundary of the type.
-    #[must_use = "this returns the result of the increment, without modifying the original"]
     #[cfg_attr(all(test, mutate), mutate)]
     fn wrapping_inc(&self) -> U256 {
         let mut ret = U256::ZERO;

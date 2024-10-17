@@ -9,8 +9,8 @@
 //! # Example: encoding a network's magic bytes
 //!
 //! ```rust
-//! use bitcoin::Network;
-//! use bitcoin::consensus::encode::serialize;
+//! use satsnet::Network;
+//! use satsnet::consensus::encode::serialize;
 //!
 //! let network = Network::Bitcoin;
 //! let bytes = serialize(&network.magic());
@@ -83,8 +83,8 @@ impl Network {
     /// # Examples
     ///
     /// ```rust
-    /// use bitcoin::p2p::Magic;
-    /// use bitcoin::Network;
+    /// use satsnet::p2p::Magic;
+    /// use satsnet::Network;
     ///
     /// assert_eq!(Ok(Network::Bitcoin), Network::try_from(Magic::from_bytes([0xF9, 0xBE, 0xB4, 0xD9])));
     /// assert_eq!(None, Network::from_magic(Magic::from_bytes([0xFF, 0xFF, 0xFF, 0xFF])));
@@ -97,8 +97,8 @@ impl Network {
     /// # Examples
     ///
     /// ```rust
-    /// use bitcoin::p2p::Magic;
-    /// use bitcoin::Network;
+    /// use satsnet::p2p::Magic;
+    /// use satsnet::Network;
     ///
     /// let network = Network::Bitcoin;
     /// assert_eq!(network.magic(), Magic::from_bytes([0xF9, 0xBE, 0xB4, 0xD9]));
@@ -152,8 +152,8 @@ impl Network {
     /// # Examples
     ///
     /// ```rust
-    /// use bitcoin::Network;
-    /// use bitcoin::blockdata::constants::ChainHash;
+    /// use satsnet::Network;
+    /// use satsnet::blockdata::constants::ChainHash;
     ///
     /// let network = Network::Bitcoin;
     /// assert_eq!(network.chain_hash(), ChainHash::BITCOIN);
@@ -165,8 +165,8 @@ impl Network {
     /// # Examples
     ///
     /// ```rust
-    /// use bitcoin::Network;
-    /// use bitcoin::blockdata::constants::ChainHash;
+    /// use satsnet::Network;
+    /// use satsnet::blockdata::constants::ChainHash;
     ///
     /// assert_eq!(Ok(Network::Bitcoin), Network::try_from(ChainHash::BITCOIN));
     /// ```

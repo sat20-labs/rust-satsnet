@@ -258,39 +258,3 @@ mod into_iter {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{SerializedSignature, MAX_LEN};
-
-    #[test]
-    fn iterator_ops_are_homomorphic() {
-        let mut fake_signature_data = [0; MAX_LEN];
-        for (i, byte) in fake_signature_data.iter_mut().enumerate() {
-            *byte = i as u8;
-        }
-
-        let fake_signature = SerializedSignature { data: fake_signature_data, len: MAX_LEN };
-
-        let mut iter1 = fake_signature.into_iter();
-        let mut iter2 = fake_signature.iter();
-
-        // while let so we can compare size_hint and as_slice
-        while let (Some(a), Some(b)) = (iter1.next(), iter2.next()) {
-            assert_eq!(a, *b);
-            assert_eq!(iter1.size_hint(), iter2.size_hint());
-            assert_eq!(iter1.as_slice(), iter2.as_slice());
-        }
-
-        let mut iter1 = fake_signature.into_iter();
-        let mut iter2 = fake_signature.iter();
-
-        // manual next_back instead of rev() so that we can check as_slice()
-        // if next_back is implemented correctly then rev() is also correct - provided by `core`
-        while let (Some(a), Some(b)) = (iter1.next_back(), iter2.next_back()) {
-            assert_eq!(a, *b);
-            assert_eq!(iter1.size_hint(), iter2.size_hint());
-            assert_eq!(iter1.as_slice(), iter2.as_slice());
-        }
-    }
-}

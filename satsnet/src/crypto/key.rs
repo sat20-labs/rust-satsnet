@@ -133,7 +133,7 @@ impl PublicKey {
     ///
     /// ```rust
     /// use std::str::FromStr;
-    /// use bitcoin::PublicKey;
+    /// use satsnet::PublicKey;
     ///
     /// let pk = |s| PublicKey::from_str(s).unwrap();
     ///
@@ -712,8 +712,8 @@ pub type UntweakedKeypair = Keypair;
 /// # Examples
 /// ```
 /// # #[cfg(feature = "rand-std")] {
-/// # use bitcoin::key::{Keypair, TweakedKeypair, TweakedPublicKey};
-/// # use bitcoin::secp256k1::{rand, Secp256k1};
+/// # use satsnet::key::{Keypair, TweakedKeypair, TweakedPublicKey};
+/// # use satsnet::secp256k1::{rand, Secp256k1};
 /// # let secp = Secp256k1::new();
 /// # let keypair = TweakedKeypair::dangerous_assume_tweaked(Keypair::new(&secp, &mut rand::thread_rng()));
 /// // There are various conversion methods available to get a tweaked pubkey from a tweaked keypair.
