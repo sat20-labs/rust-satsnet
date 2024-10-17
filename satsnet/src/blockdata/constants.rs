@@ -224,3 +224,14 @@ impl ChainHash {
         ChainHash(block_hash.to_byte_array())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_genesis_hash() {
+        let block = genesis_block(&Params::TESTNET4);
+        eprint!("{}\n", block.block_hash());
+    }
+}
