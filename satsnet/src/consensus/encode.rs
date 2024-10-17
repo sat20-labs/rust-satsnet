@@ -34,6 +34,7 @@ use crate::p2p::{
 };
 use crate::prelude::*;
 use crate::taproot::TapLeafHash;
+use crate::transaction::SatsRange;
 
 /// Encoding error.
 #[derive(Debug)]
@@ -688,6 +689,7 @@ impl_vec!(TapLeafHash);
 impl_vec!(VarInt);
 impl_vec!(ShortId);
 impl_vec!(PrefilledTransaction);
+impl_vec!(SatsRange);
 
 #[cfg(feature = "std")]
 impl_vec!(Inventory);
