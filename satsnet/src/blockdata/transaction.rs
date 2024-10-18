@@ -610,15 +610,21 @@ pub struct TxOut {
     pub value: Amount,
     /// The script which must be satisfied for the output to be spent.
     pub script_pubkey: ScriptBuf,
-    // /// Sats index range for the output
-    // pub sats_ranges: Vec<SatsRange>,
+    /// Sats index range for the output
+    #[cfg(feature = "satsnet")]
+    pub sats_ranges: Vec<SatsRange>,
 }
 
 impl TxOut {
     /// This is used as a "null txout" in consensus signing code.
+    #[cfg(not(feature = "satsnet"))]
     pub const NULL: Self =
-        // TxOut { value: Amount::from_sat(0xffffffffffffffff), script_pubkey: ScriptBuf::new(), sats_ranges: Vec::new() };
         TxOut { value: Amount::from_sat(0xffffffffffffffff), script_pubkey: ScriptBuf::new(),  };
+
+    /// This is used as a "null txout" in consensus signing code.
+    #[cfg(feature = "satsnet")]
+    pub const NULL: Self =
+    TxOut { value: Amount::from_sat(0xffffffffffffffff), script_pubkey: ScriptBuf::new(), sats_ranges: Vec::new(), };
 
     /// The weight of this output.
     ///
@@ -650,8 +656,10 @@ impl TxOut {
     ///
     /// [`minimal_non_dust_custom`]: TxOut::minimal_non_dust_custom
     pub fn minimal_non_dust(script_pubkey: ScriptBuf) -> Self {
-        // TxOut { value: script_pubkey.minimal_non_dust(), script_pubkey, sats_ranges: Vec::new() }
-        TxOut { value: script_pubkey.minimal_non_dust(), script_pubkey, }
+        #[cfg(not(feature = "satsnet"))]
+        return TxOut { value: script_pubkey.minimal_non_dust(), script_pubkey, };
+        #[cfg(feature = "satsnet")]
+        return TxOut { value: script_pubkey.minimal_non_dust(), script_pubkey, sats_ranges: Vec::new() };
     }
 
     /// Creates a `TxOut` with given script and the smallest possible `value` that is **not** dust
@@ -666,8 +674,10 @@ impl TxOut {
     ///
     /// [`minimal_non_dust`]: TxOut::minimal_non_dust
     pub fn minimal_non_dust_custom(script_pubkey: ScriptBuf, dust_relay_fee: FeeRate) -> Self {
-        // TxOut { value: script_pubkey.minimal_non_dust_custom(dust_relay_fee), script_pubkey: script_pubkey, sats_ranges: Vec::new() }
-        TxOut { value: script_pubkey.minimal_non_dust_custom(dust_relay_fee), script_pubkey: script_pubkey, }
+        #[cfg(not(feature = "satsnet"))]
+        return TxOut { value: script_pubkey.minimal_non_dust_custom(dust_relay_fee), script_pubkey: script_pubkey, };
+        #[cfg(feature = "satsnet")]
+        return TxOut { value: script_pubkey.minimal_non_dust_custom(dust_relay_fee), script_pubkey: script_pubkey, sats_ranges: Vec::new() };
     }
 }
 
@@ -1227,8 +1237,10 @@ impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { fmt::Display::fmt(&self.0, f) }
 }
 
-// impl_consensus_encoding!(TxOut, value, sats_ranges, script_pubkey);
+#[cfg(not(feature = "satsnet"))]
 impl_consensus_encoding!(TxOut, value, script_pubkey);
+#[cfg(feature = "satsnet")]
+impl_consensus_encoding!(TxOut, value, sats_ranges, script_pubkey);
 
 impl Encodable for OutPoint {
     fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {

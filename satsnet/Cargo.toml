@@ -1,6 +1,6 @@
 [package]
 name = "satsnet"
-version = "0.32.8"
+version = "0.32.9"
 license = "CC0-1.0"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 repository = "https://github.com/sat20-labs/rust-satsnet/"
@@ -34,6 +34,7 @@ serde = [
 secp-lowmemory = ["secp256k1/lowmemory"]
 secp-recovery = ["secp256k1/recovery"]
 bitcoinconsensus-std = ["bitcoinconsensus/std", "std"]
+satsnet = []
 
 [dependencies]
 base58 = { package = "satsnet-base58ck", version = "0.1.1", default-features = false }

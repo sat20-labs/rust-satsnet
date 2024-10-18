@@ -94,8 +94,10 @@ fn bitcoin_genesis_tx(params: impl AsRef<Params>) -> Transaction {
     // Outputs
     let out_script =
         script::Builder::new().push_slice(script_bytes).push_opcode(OP_CHECKSIG).into_script();
-        // ret.output.push(TxOut { value: Amount::from_sat(50 * 100_000_000), script_pubkey: out_script, sats_ranges: Vec::new() });
+        #[cfg(not(feature = "satsnet"))]
         ret.output.push(TxOut { value: Amount::from_sat(50 * 100_000_000), script_pubkey: out_script });
+        #[cfg(feature = "satsnet")]
+        ret.output.push(TxOut { value: Amount::from_sat(50 * 100_000_000), script_pubkey: out_script, sats_ranges: Vec::new() });
     // end
     ret
 }
