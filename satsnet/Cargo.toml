@@ -1,6 +1,6 @@
 [package]
 name = "satsnet"
-version = "0.32.10"
+version = "0.32.11"
 authors = ["Jacky Chen <softwarecheng@gmail.com>"]
 license = "CC0-1.0"
 repository = "https://github.com/sat20-labs/rust-satsnet/"
@@ -22,6 +22,7 @@ serde = ["actual-serde", "hashes/serde", "secp256k1/serde", "internals/serde", "
 secp-lowmemory = ["secp256k1/lowmemory"]
 secp-recovery = ["secp256k1/recovery"]
 bitcoinconsensus-std = ["bitcoinconsensus/std", "std"]
+satsnet = []
 
 [package.metadata.docs.rs]
 all-features = true
