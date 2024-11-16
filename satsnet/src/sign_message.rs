@@ -206,3 +206,88 @@ pub fn signed_msg_hash(msg: &str) -> sha256d::Hash {
     engine.input(msg.as_bytes());
     sha256d::Hash::from_engine(engine)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_signed_msg_hash() {
+        let hash = signed_msg_hash("test");
+        assert_eq!(
+            hash.to_string(),
+            "a6f87fe6d58a032c320ff8d1541656f0282c2c7bfcc69d61af4c8e8ed528e49c"
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "secp-recovery", feature = "base64", feature = "rand-std"))]
+    fn test_message_signature() {
+        use core::str::FromStr;
+
+        use secp256k1;
+
+        use crate::{Address, AddressType, Network, NetworkKind};
+
+        let secp = secp256k1::Secp256k1::new();
+        let message = "rust-bitcoin MessageSignature test";
+        let msg_hash = super::signed_msg_hash(message);
+        let msg = secp256k1::Message::from_digest(msg_hash.to_byte_array());
+        let privkey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
+        let secp_sig = secp.sign_ecdsa_recoverable(&msg, &privkey);
+        let signature = super::MessageSignature { signature: secp_sig, compressed: true };
+
+        assert_eq!(signature.to_base64(), signature.to_string());
+        let signature2 = super::MessageSignature::from_str(&signature.to_string()).unwrap();
+        let pubkey = signature2
+            .recover_pubkey(&secp, msg_hash)
+            .unwrap()
+            .try_into()
+            .expect("compressed was set to true");
+
+        let p2pkh = Address::p2pkh(pubkey, NetworkKind::Main);
+        assert_eq!(signature2.is_signed_by_address(&secp, &p2pkh, msg_hash), Ok(true));
+        let p2wpkh = Address::p2wpkh(&pubkey, Network::Bitcoin);
+        assert_eq!(
+            signature2.is_signed_by_address(&secp, &p2wpkh, msg_hash),
+            Err(MessageSignatureError::UnsupportedAddressType(AddressType::P2wpkh))
+        );
+        let p2shwpkh = Address::p2shwpkh(&pubkey, NetworkKind::Main);
+        assert_eq!(
+            signature2.is_signed_by_address(&secp, &p2shwpkh, msg_hash),
+            Err(MessageSignatureError::UnsupportedAddressType(AddressType::P2sh))
+        );
+        let p2pkh = Address::p2pkh(pubkey, Network::Bitcoin);
+        assert_eq!(signature2.is_signed_by_address(&secp, &p2pkh, msg_hash), Ok(true));
+
+        assert_eq!(pubkey.0, secp256k1::PublicKey::from_secret_key(&secp, &privkey));
+    }
+
+    #[test]
+    #[cfg(all(feature = "secp-recovery", feature = "base64"))]
+    fn test_incorrect_message_signature() {
+        use base64::prelude::{Engine as _, BASE64_STANDARD};
+        use secp256k1;
+
+        use crate::crypto::key::PublicKey;
+        use crate::{Address, NetworkKind};
+
+        let secp = secp256k1::Secp256k1::new();
+        let message = "a different message from what was signed";
+        let msg_hash = super::signed_msg_hash(message);
+
+        // Signature of msg = "rust-bitcoin MessageSignature test"
+        // Signed with pk "UuOGDsfLPr4HIMKQX0ipjJeRaj1geCq3yPUF2COP5ME="
+        let signature_base64 = "IAM2qX24tYx/bdBTIgVLhD8QEAjrPlJpmjB4nZHdRYGIBa4DmVulAcwjPnWe6Q5iEwXH6F0pUCJP/ZeHPWS1h1o=";
+        let pubkey_base64 = "A1FTfMEntPpAty3qkEo0q2Dc1FEycI10a3jmwEFy+Qr6";
+        let signature =
+            super::MessageSignature::from_base64(signature_base64).expect("message signature");
+
+        let pubkey =
+            PublicKey::from_slice(&BASE64_STANDARD.decode(pubkey_base64).expect("base64 string"))
+                .expect("pubkey slice");
+
+        let p2pkh = Address::p2pkh(pubkey, NetworkKind::Main);
+        assert_eq!(signature.is_signed_by_address(&secp, &p2pkh, msg_hash), Ok(false));
+    }
+}

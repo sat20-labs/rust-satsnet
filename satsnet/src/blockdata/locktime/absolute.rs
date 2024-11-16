@@ -9,7 +9,7 @@
 use core::cmp::Ordering;
 use core::fmt;
 
-use io::{BufRead, Write};
+use io::{Read, Write};
 #[cfg(all(test, mutate))]
 use mutagen::mutate;
 use units::parse;
@@ -47,7 +47,7 @@ pub use units::locktime::absolute::{
 ///
 /// # Examples
 /// ```
-/// # use satsnet::absolute::{LockTime, LockTime::*};
+/// # use bitcoin::absolute::{LockTime, LockTime::*};
 /// # let n = LockTime::from_consensus(741521);          // n OP_CHECKLOCKTIMEVERIFY
 /// # let lock_time = LockTime::from_consensus(741521);  // nLockTime
 /// // To compare absolute lock times there are various `is_satisfied_*` methods, you may also use:
@@ -63,7 +63,7 @@ pub enum LockTime {
     ///
     /// # Examples
     /// ```rust
-    /// use satsnet::absolute::LockTime;
+    /// use bitcoin::absolute::LockTime;
     ///
     /// let block: u32 = 741521;
     /// let n = LockTime::from_height(block).expect("valid height");
@@ -75,7 +75,7 @@ pub enum LockTime {
     ///
     /// # Examples
     /// ```rust
-    /// use satsnet::absolute::LockTime;
+    /// use bitcoin::absolute::LockTime;
     ///
     /// let seconds: u32 = 1653195600; // May 22nd, 5am UTC.
     /// let n = LockTime::from_time(seconds).expect("valid time");
@@ -121,7 +121,7 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use satsnet::absolute::LockTime;
+    /// # use bitcoin::absolute::LockTime;
     /// # let n = LockTime::from_consensus(741521); // n OP_CHECKLOCKTIMEVERIFY
     ///
     /// // `from_consensus` roundtrips as expected with `to_consensus_u32`.
@@ -143,7 +143,7 @@ impl LockTime {
     ///
     /// # Examples
     /// ```rust
-    /// # use satsnet::absolute::LockTime;
+    /// # use bitcoin::absolute::LockTime;
     /// assert!(LockTime::from_height(741521).is_ok());
     /// assert!(LockTime::from_height(1653195600).is_err());
     /// ```
@@ -159,7 +159,7 @@ impl LockTime {
     ///
     /// # Examples
     /// ```rust
-    /// # use satsnet::absolute::LockTime;
+    /// # use bitcoin::absolute::LockTime;
     /// assert!(LockTime::from_time(1653195600).is_ok());
     /// assert!(LockTime::from_time(741521).is_err());
     /// ```
@@ -198,7 +198,7 @@ impl LockTime {
     ///
     /// # Examples
     /// ```no_run
-    /// # use satsnet::absolute::{LockTime, Height, Time};
+    /// # use bitcoin::absolute::{LockTime, Height, Time};
     /// // Can be implemented if block chain data is available.
     /// fn get_height() -> Height { todo!("return the current block height") }
     /// fn get_time() -> Time { todo!("return the current block time") }
@@ -233,7 +233,7 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use satsnet::absolute::{LockTime, LockTime::*};
+    /// # use bitcoin::absolute::{LockTime, LockTime::*};
     /// let lock_time = LockTime::from_consensus(741521);
     /// let check = LockTime::from_consensus(741521 + 1);
     /// assert!(lock_time.is_implied_by(check));
@@ -262,7 +262,7 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use satsnet::absolute::{LockTime, LockTime::*};
+    /// # use bitcoin::absolute::{LockTime, LockTime::*};
     /// # let n = LockTime::from_consensus(741521);              // n OP_CHECKLOCKTIMEVERIFY
     /// # let lock_time = LockTime::from_consensus(741521 + 1);  // nLockTime
     ///
@@ -348,7 +348,7 @@ impl Encodable for LockTime {
 
 impl Decodable for LockTime {
     #[inline]
-    fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
+    fn consensus_decode<R: Read + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
         u32::consensus_decode(r).map(LockTime::from_consensus)
     }
 }
@@ -403,5 +403,137 @@ impl ordered::ArbitraryOrd for LockTime {
             (Blocks(this), Blocks(that)) => this.cmp(that),
             (Seconds(this), Seconds(that)) => this.cmp(that),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_and_alternate() {
+        let n = LockTime::from_consensus(741521);
+        let s = format!("{}", n);
+        assert_eq!(&s, "741521");
+
+        let got = format!("{:#}", n);
+        assert_eq!(got, "block-height 741521");
+    }
+
+    #[test]
+    fn lock_time_from_hex_lower() {
+        let lock = LockTime::from_hex("0x6289c350").unwrap();
+        assert_eq!(lock, LockTime::from_consensus(0x6289C350));
+    }
+
+    #[test]
+    fn lock_time_from_hex_upper() {
+        let lock = LockTime::from_hex("0X6289C350").unwrap();
+        assert_eq!(lock, LockTime::from_consensus(0x6289C350));
+    }
+
+    #[test]
+    fn lock_time_from_unprefixed_hex_lower() {
+        let lock = LockTime::from_unprefixed_hex("6289c350").unwrap();
+        assert_eq!(lock, LockTime::from_consensus(0x6289C350));
+    }
+
+    #[test]
+    fn lock_time_from_unprefixed_hex_upper() {
+        let lock = LockTime::from_unprefixed_hex("6289C350").unwrap();
+        assert_eq!(lock, LockTime::from_consensus(0x6289C350));
+    }
+
+    #[test]
+    fn lock_time_from_invalid_hex_should_err() {
+        let hex = "0xzb93";
+        let result = LockTime::from_hex(hex);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parses_correctly_to_height_or_time() {
+        let lock = LockTime::from_consensus(750_000);
+
+        assert!(lock.is_block_height());
+        assert!(!lock.is_block_time());
+
+        let t: u32 = 1653195600; // May 22nd, 5am UTC.
+        let lock = LockTime::from_consensus(t);
+
+        assert!(!lock.is_block_height());
+        assert!(lock.is_block_time());
+    }
+
+    #[test]
+    fn satisfied_by_height() {
+        let lock = LockTime::from_consensus(750_000);
+
+        let height = Height::from_consensus(800_000).expect("failed to parse height");
+
+        let t: u32 = 1653195600; // May 22nd, 5am UTC.
+        let time = Time::from_consensus(t).expect("invalid time value");
+
+        assert!(lock.is_satisfied_by(height, time))
+    }
+
+    #[test]
+    fn satisfied_by_time() {
+        let lock = LockTime::from_consensus(1053195600);
+
+        let t: u32 = 1653195600; // May 22nd, 5am UTC.
+        let time = Time::from_consensus(t).expect("invalid time value");
+
+        let height = Height::from_consensus(800_000).expect("failed to parse height");
+
+        assert!(lock.is_satisfied_by(height, time))
+    }
+
+    #[test]
+    fn satisfied_by_same_height() {
+        let h = 750_000;
+        let lock = LockTime::from_consensus(h);
+        let height = Height::from_consensus(h).expect("failed to parse height");
+
+        let t: u32 = 1653195600; // May 22nd, 5am UTC.
+        let time = Time::from_consensus(t).expect("invalid time value");
+
+        assert!(lock.is_satisfied_by(height, time))
+    }
+
+    #[test]
+    fn satisfied_by_same_time() {
+        let t: u32 = 1653195600; // May 22nd, 5am UTC.
+        let lock = LockTime::from_consensus(t);
+        let time = Time::from_consensus(t).expect("invalid time value");
+
+        let height = Height::from_consensus(800_000).expect("failed to parse height");
+
+        assert!(lock.is_satisfied_by(height, time))
+    }
+
+    #[test]
+    fn height_correctly_implies() {
+        let lock = LockTime::from_consensus(750_005);
+
+        assert!(!lock.is_implied_by(LockTime::from_consensus(750_004)));
+        assert!(lock.is_implied_by(LockTime::from_consensus(750_005)));
+        assert!(lock.is_implied_by(LockTime::from_consensus(750_006)));
+    }
+
+    #[test]
+    fn time_correctly_implies() {
+        let t: u32 = 1700000005;
+        let lock = LockTime::from_consensus(t);
+
+        assert!(!lock.is_implied_by(LockTime::from_consensus(1700000004)));
+        assert!(lock.is_implied_by(LockTime::from_consensus(1700000005)));
+        assert!(lock.is_implied_by(LockTime::from_consensus(1700000006)));
+    }
+
+    #[test]
+    fn incorrect_units_do_not_imply() {
+        let lock = LockTime::from_consensus(750_005);
+        assert!(!lock.is_implied_by(LockTime::from_consensus(1700000004)));
     }
 }

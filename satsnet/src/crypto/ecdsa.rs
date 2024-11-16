@@ -253,3 +253,22 @@ impl From<NonStandardSighashTypeError> for Error {
 impl From<hex::HexToBytesError> for Error {
     fn from(e: hex::HexToBytesError) -> Self { Self::Hex(e) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_serialized_signature() {
+        let hex = "3046022100839c1fbc5304de944f697c9f4b1d01d1faeba32d751c0f7acb21ac8a0f436a72022100e89bd46bb3a5a62adc679f659b7ce876d83ee297c7a5587b2011c4fcc72eab45";
+        let sig = Signature {
+            signature: secp256k1::ecdsa::Signature::from_str(hex).unwrap(),
+            sighash_type: EcdsaSighashType::All,
+        };
+
+        let mut buf = vec![];
+        sig.serialize_to_writer(&mut buf).expect("write failed");
+
+        assert_eq!(sig.to_vec(), buf)
+    }
+}

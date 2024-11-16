@@ -406,8 +406,8 @@ where
 ///
 /// ```
 /// # use actual_serde::{Serialize, Deserialize};
-/// use satsnet::Transaction;
-/// use satsnet::consensus;
+/// use bitcoin::Transaction;
+/// use bitcoin::consensus;
 ///
 /// #[derive(Serialize, Deserialize)]
 /// # #[serde(crate = "actual_serde")]

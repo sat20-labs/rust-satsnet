@@ -7,7 +7,7 @@
 //!
 
 use hashes::{sha256d, Hash as _};
-use io::{BufRead, Write};
+use io::{Read, Write};
 
 use crate::blockdata::block::BlockHash;
 use crate::blockdata::transaction::{Txid, Wtxid};
@@ -72,7 +72,7 @@ impl Encodable for Inventory {
             Inventory::Transaction(ref t) => encode_inv!(1, t),
             Inventory::Block(ref b) => encode_inv!(2, b),
             Inventory::CompactBlock(ref b) => encode_inv!(4, b),
-            Inventory::WTx(wtxid) => encode_inv!(5, wtxid),
+            Inventory::WTx(w) => encode_inv!(5, w),
             Inventory::WitnessTransaction(ref t) => encode_inv!(0x40000001, t),
             Inventory::WitnessBlock(ref b) => encode_inv!(0x40000002, b),
             Inventory::Unknown { inv_type: t, hash: ref d } => encode_inv!(t, d),
@@ -82,7 +82,7 @@ impl Encodable for Inventory {
 
 impl Decodable for Inventory {
     #[inline]
-    fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
+    fn consensus_decode<R: Read + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
         let inv_type: u32 = Decodable::consensus_decode(r)?;
         Ok(match inv_type {
             0 => Inventory::Error,
@@ -142,3 +142,44 @@ impl GetHeadersMessage {
 }
 
 impl_consensus_encoding!(GetHeadersMessage, version, locator_hashes, stop_hash);
+
+#[cfg(test)]
+mod tests {
+    use hashes::Hash;
+    use hex::test_hex_unwrap as hex;
+
+    use super::{GetBlocksMessage, GetHeadersMessage};
+    use crate::consensus::encode::{deserialize, serialize};
+
+    #[test]
+    fn getblocks_message_test() {
+        let from_sat = hex!("72110100014a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b0000000000000000000000000000000000000000000000000000000000000000");
+        let genhash = hex!("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b");
+
+        let decode: Result<GetBlocksMessage, _> = deserialize(&from_sat);
+        assert!(decode.is_ok());
+        let real_decode = decode.unwrap();
+        assert_eq!(real_decode.version, 70002);
+        assert_eq!(real_decode.locator_hashes.len(), 1);
+        assert_eq!(serialize(&real_decode.locator_hashes[0]), genhash);
+        assert_eq!(real_decode.stop_hash, Hash::all_zeros());
+
+        assert_eq!(serialize(&real_decode), from_sat);
+    }
+
+    #[test]
+    fn getheaders_message_test() {
+        let from_sat = hex!("72110100014a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b0000000000000000000000000000000000000000000000000000000000000000");
+        let genhash = hex!("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b");
+
+        let decode: Result<GetHeadersMessage, _> = deserialize(&from_sat);
+        assert!(decode.is_ok());
+        let real_decode = decode.unwrap();
+        assert_eq!(real_decode.version, 70002);
+        assert_eq!(real_decode.locator_hashes.len(), 1);
+        assert_eq!(serialize(&real_decode.locator_hashes[0]), genhash);
+        assert_eq!(real_decode.stop_hash, Hash::all_zeros());
+
+        assert_eq!(serialize(&real_decode), from_sat);
+    }
+}

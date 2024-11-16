@@ -63,7 +63,7 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use satsnet::relative::LockTime;
+    /// # use bitcoin::relative::LockTime;
     ///
     /// // `from_consensus` roundtrips with `to_consensus_u32` for small values.
     /// let n_lock_time: u32 = 7000;
@@ -166,8 +166,8 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use satsnet::Sequence;
-    /// # use satsnet::locktime::relative::{LockTime, Height, Time};
+    /// # use bitcoin::Sequence;
+    /// # use bitcoin::locktime::relative::{LockTime, Height, Time};
     ///
     /// # let height = 100;       // 100 blocks.
     /// # let intervals = 70;     // Approx 10 hours.
@@ -206,8 +206,8 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use satsnet::Sequence;
-    /// # use satsnet::locktime::relative::{LockTime, Height, Time};
+    /// # use bitcoin::Sequence;
+    /// # use bitcoin::locktime::relative::{LockTime, Height, Time};
     ///
     /// # let height = 100;       // 100 blocks.
     /// # let lock = Sequence::from_height(height).to_relative_lock_time().expect("valid height");
@@ -254,8 +254,8 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use satsnet::Sequence;
-    /// # use satsnet::locktime::relative::{LockTime, Height, Time};
+    /// # use bitcoin::Sequence;
+    /// # use bitcoin::locktime::relative::{LockTime, Height, Time};
     ///
     /// let height: u16 = 100;
     /// let lock = Sequence::from_height(height).to_relative_lock_time().expect("valid height");
@@ -281,8 +281,8 @@ impl LockTime {
     /// # Examples
     ///
     /// ```rust
-    /// # use satsnet::Sequence;
-    /// # use satsnet::locktime::relative::{LockTime, Height, Time};
+    /// # use bitcoin::Sequence;
+    /// # use bitcoin::locktime::relative::{LockTime, Height, Time};
     ///
     /// let intervals: u16 = 70; // approx 10 hours;
     /// let lock = Sequence::from_512_second_intervals(intervals).to_relative_lock_time().expect("valid time");
@@ -431,3 +431,83 @@ impl fmt::Display for IncompatibleTimeError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for IncompatibleTimeError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn satisfied_by_height() {
+        let height = Height::from(10);
+        let time = Time::from_512_second_intervals(70);
+
+        let lock = LockTime::from(height);
+
+        assert!(!lock.is_satisfied_by(Height::from(9), time));
+        assert!(lock.is_satisfied_by(Height::from(10), time));
+        assert!(lock.is_satisfied_by(Height::from(11), time));
+    }
+
+    #[test]
+    fn satisfied_by_time() {
+        let height = Height::from(10);
+        let time = Time::from_512_second_intervals(70);
+
+        let lock = LockTime::from(time);
+
+        assert!(!lock.is_satisfied_by(height, Time::from_512_second_intervals(69)));
+        assert!(lock.is_satisfied_by(height, Time::from_512_second_intervals(70)));
+        assert!(lock.is_satisfied_by(height, Time::from_512_second_intervals(71)));
+    }
+
+    #[test]
+    fn height_correctly_implies() {
+        let height = Height::from(10);
+        let lock = LockTime::from(height);
+
+        assert!(!lock.is_implied_by(LockTime::from(Height::from(9))));
+        assert!(lock.is_implied_by(LockTime::from(Height::from(10))));
+        assert!(lock.is_implied_by(LockTime::from(Height::from(11))));
+    }
+
+    #[test]
+    fn time_correctly_implies() {
+        let time = Time::from_512_second_intervals(70);
+        let lock = LockTime::from(time);
+
+        assert!(!lock.is_implied_by(LockTime::from(Time::from_512_second_intervals(69))));
+        assert!(lock.is_implied_by(LockTime::from(Time::from_512_second_intervals(70))));
+        assert!(lock.is_implied_by(LockTime::from(Time::from_512_second_intervals(71))));
+    }
+
+    #[test]
+    fn incorrect_units_do_not_imply() {
+        let time = Time::from_512_second_intervals(70);
+        let height = Height::from(10);
+
+        let lock = LockTime::from(time);
+        assert!(!lock.is_implied_by(LockTime::from(height)));
+    }
+
+    #[test]
+    fn consensus_round_trip() {
+        assert!(LockTime::from_consensus(1 << 31).is_err());
+        assert!(LockTime::from_consensus(1 << 30).is_ok());
+        // Relative locktimes do not care about bits 17 through 21.
+        assert_eq!(LockTime::from_consensus(65536), LockTime::from_consensus(0));
+
+        for val in [0u32, 1, 1000, 65535] {
+            let seq = Sequence::from_consensus(val);
+            let lt = LockTime::from_consensus(val).unwrap();
+            assert_eq!(lt.to_consensus_u32(), val);
+            assert_eq!(lt.to_sequence(), seq);
+            assert_eq!(LockTime::from_sequence(seq).unwrap().to_sequence(), seq);
+
+            let seq = Sequence::from_consensus(val + (1 << 22));
+            let lt = LockTime::from_consensus(val + (1 << 22)).unwrap();
+            assert_eq!(lt.to_consensus_u32(), val + (1 << 22));
+            assert_eq!(lt.to_sequence(), seq);
+            assert_eq!(LockTime::from_sequence(seq).unwrap().to_sequence(), seq);
+        }
+    }
+}

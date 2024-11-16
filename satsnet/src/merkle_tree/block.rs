@@ -12,9 +12,9 @@
 //! # Examples
 //!
 //! ```rust
-//! use satsnet::hash_types::Txid;
-//! use satsnet::hex::FromHex;
-//! use satsnet::{Block, MerkleBlock};
+//! use bitcoin::hash_types::Txid;
+//! use bitcoin::hex::FromHex;
+//! use bitcoin::{Block, MerkleBlock};
 //!
 //! // Get the proof from a bitcoind by running in the terminal:
 //! // $ TXID="5a4ebf66822b0b2d56bd9dc64ece0bc38ee7844a23ff1d7320a88c5fdb2ad3e2"
@@ -23,7 +23,7 @@
 //!     0000000000190760b278fe7b8565fda3b968b918d5fd997f993b23674c0af3b6fde300b38f33a5914ce6ed5b\
 //!     1b01e32f570200000002252bf9d75c4f481ebb6278d708257d1f12beb6dd30301d26c623f789b2ba6fc0e2d3\
 //!     2adb5f8ca820731dff234a84e78ec30bce4ec69dbd562d0b2b8266bf4e5a0105").unwrap();
-//! let mb: MerkleBlock = satsnet::consensus::deserialize(&mb_bytes).unwrap();
+//! let mb: MerkleBlock = bitcoin::consensus::deserialize(&mb_bytes).unwrap();
 //!
 //! // Authenticate and extract matched transaction ids
 //! let mut matches: Vec<Txid> = vec![];
@@ -41,7 +41,7 @@
 use core::fmt;
 
 use hashes::Hash;
-use io::{BufRead, Write};
+use io::{Read, Write};
 
 use self::MerkleBlockError::*;
 use crate::blockdata::block::{self, Block, TxMerkleNode};
@@ -71,9 +71,9 @@ impl MerkleBlock {
     /// # Examples
     ///
     /// ```rust
-    /// use satsnet::hash_types::Txid;
-    /// use satsnet::hex::FromHex;
-    /// use satsnet::{Block, MerkleBlock};
+    /// use bitcoin::hash_types::Txid;
+    /// use bitcoin::hex::FromHex;
+    /// use bitcoin::{Block, MerkleBlock};
     ///
     /// // Block 80000
     /// let block_bytes = Vec::from_hex("01000000ba8b9cda965dd8e536670f9ddec10e53aab14b20bacad2\
@@ -86,7 +86,7 @@ impl MerkleBlock {
     ///     d3ee3738d9e1446618c4571d1090db022100e2ac980643b0b82c0e88ffdfec6b64e3e6ba35e7ba5fdd7d\
     ///     5d6cc8d25c6b241501ffffffff0100f2052a010000001976a914404371705fa9bd789a2fcd52d2c580b6\
     ///     5d35549d88ac00000000").unwrap();
-    /// let block: Block = satsnet::consensus::deserialize(&block_bytes).unwrap();
+    /// let block: Block = bitcoin::consensus::deserialize(&block_bytes).unwrap();
     ///
     /// // Create a merkle block containing a single transaction
     /// let txid = "5a4ebf66822b0b2d56bd9dc64ece0bc38ee7844a23ff1d7320a88c5fdb2ad3e2".parse::<Txid>().unwrap();
@@ -151,7 +151,7 @@ impl Encodable for MerkleBlock {
 }
 
 impl Decodable for MerkleBlock {
-    fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
+    fn consensus_decode<R: Read + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
         Ok(MerkleBlock {
             header: Decodable::consensus_decode(r)?,
             txn: Decodable::consensus_decode(r)?,
@@ -191,6 +191,7 @@ impl Decodable for MerkleBlock {
 ///  - uint256[]  hashes in depth-first order (<= 32*N bytes)
 ///  - varint     number of bytes of flag bits (1-3 bytes)
 ///  - byte[]     flag bits, packed per 8 in a byte, least significant bit first (<= 2*N-1 bits)
+///
 /// The size constraints follow from this.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct PartialMerkleTree {
@@ -221,9 +222,9 @@ impl PartialMerkleTree {
     /// # Examples
     ///
     /// ```rust
-    /// use satsnet::hash_types::Txid;
-    /// use satsnet::hex::FromHex;
-    /// use satsnet::merkle_tree::{MerkleBlock, PartialMerkleTree};
+    /// use bitcoin::hash_types::Txid;
+    /// use bitcoin::hex::FromHex;
+    /// use bitcoin::merkle_tree::{MerkleBlock, PartialMerkleTree};
     ///
     /// // Block 80000
     /// let txids: Vec<Txid> = [
@@ -452,7 +453,7 @@ impl Encodable for PartialMerkleTree {
 }
 
 impl Decodable for PartialMerkleTree {
-    fn consensus_decode_from_finite_reader<R: BufRead + ?Sized>(
+    fn consensus_decode_from_finite_reader<R: Read + ?Sized>(
         r: &mut R,
     ) -> Result<Self, encode::Error> {
         let num_transactions: u32 = Decodable::consensus_decode(r)?;
@@ -535,5 +536,307 @@ impl std::error::Error for MerkleBlockError {
             | NotEnoughBits | NotAllBitsConsumed | NotAllHashesConsumed | BitsArrayOverflow
             | HashesArrayOverflow | IdenticalHashesFound => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hex::test_hex_unwrap as hex;
+    #[cfg(feature = "rand-std")]
+    use secp256k1::rand::prelude::*;
+
+    use super::*;
+    use crate::consensus::encode::{deserialize, serialize};
+
+    #[cfg(feature = "rand-std")]
+    macro_rules! pmt_tests {
+        ($($name:ident),* $(,)?) => {
+            $(
+                #[test]
+                fn $name() {
+                    pmt_test_from_name(stringify!($name));
+                }
+            )*
+        }
+    }
+
+    #[cfg(feature = "rand-std")]
+    pmt_tests!(
+        pmt_test_1,
+        pmt_test_4,
+        pmt_test_7,
+        pmt_test_17,
+        pmt_test_56,
+        pmt_test_100,
+        pmt_test_127,
+        pmt_test_256,
+        pmt_test_312,
+        pmt_test_513,
+        pmt_test_1000,
+        pmt_test_4095
+    );
+
+    /// Parses the transaction count out of `name` with form: `pmt_test_$num`.
+    #[cfg(feature = "rand-std")]
+    fn pmt_test_from_name(name: &str) { pmt_test(name[9..].parse().unwrap()) }
+
+    #[cfg(feature = "rand-std")]
+    fn pmt_test(tx_count: usize) {
+        use core::cmp::min;
+
+        use crate::merkle_tree;
+
+        let mut rng = thread_rng();
+        // Create some fake tx ids
+        let tx_ids = (1..=tx_count)
+            .map(|i| format!("{:064x}", i).parse::<Txid>().unwrap())
+            .collect::<Vec<_>>();
+
+        // Calculate the merkle root and height
+        let hashes = tx_ids.iter().map(|t| t.to_raw_hash());
+        let merkle_root_1: TxMerkleNode =
+            merkle_tree::calculate_root(hashes).expect("hashes is not empty").into();
+        let mut height = 1;
+        let mut ntx = tx_count;
+        while ntx > 1 {
+            ntx = (ntx + 1) / 2;
+            height += 1;
+        }
+
+        // Check with random subsets with inclusion chances 1, 1/2, 1/4, ..., 1/128
+        for att in 1..15 {
+            let mut matches = vec![false; tx_count];
+            let mut match_txid1 = vec![];
+            for j in 0..tx_count {
+                // Generate `att / 2` random bits
+                let rand_bits = match att / 2 {
+                    0 => 0,
+                    bits => rng.gen::<u64>() >> (64 - bits),
+                };
+                let include = rand_bits == 0;
+                matches[j] = include;
+
+                if include {
+                    match_txid1.push(tx_ids[j]);
+                };
+            }
+
+            // Build the partial merkle tree
+            let pmt1 = PartialMerkleTree::from_txids(&tx_ids, &matches);
+            let serialized = serialize(&pmt1);
+
+            // Verify PartialMerkleTree's size guarantees
+            let n = min(tx_count, 1 + match_txid1.len() * height);
+            assert!(serialized.len() <= 10 + (258 * n + 7) / 8);
+
+            // Deserialize into a tester copy
+            let pmt2: PartialMerkleTree =
+                deserialize(&serialized).expect("Could not deserialize own data");
+
+            // Extract merkle root and matched txids from copy
+            let mut match_txid2: Vec<Txid> = vec![];
+            let mut indexes = vec![];
+            let merkle_root_2 = pmt2
+                .extract_matches(&mut match_txid2, &mut indexes)
+                .expect("Could not extract matches");
+
+            // Check that it has the same merkle root as the original, and a valid one
+            assert_eq!(merkle_root_1, merkle_root_2);
+            assert_ne!(merkle_root_2, TxMerkleNode::all_zeros());
+
+            // check that it contains the matched transactions (in the same order!)
+            assert_eq!(match_txid1, match_txid2);
+
+            // check that random bit flips break the authentication
+            for _ in 0..4 {
+                let mut pmt3: PartialMerkleTree = deserialize(&serialized).unwrap();
+                pmt3.damage(&mut rng);
+                let mut match_txid3 = vec![];
+                let merkle_root_3 = pmt3.extract_matches(&mut match_txid3, &mut indexes).unwrap();
+                assert_ne!(merkle_root_3, merkle_root_1);
+            }
+        }
+    }
+
+    #[test]
+    fn pmt_malleability() {
+        // Create some fake tx ids with the last 2 hashes repeating
+        let txids: Vec<Txid> = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 9, 10]
+            .iter()
+            .map(|i| format!("{:064x}", i).parse::<Txid>().unwrap())
+            .collect();
+
+        let matches =
+            vec![false, false, false, false, false, false, false, false, false, true, true, false];
+
+        let tree = PartialMerkleTree::from_txids(&txids, &matches);
+        // Should fail due to duplicate txs found
+        let result = tree.extract_matches(&mut vec![], &mut vec![]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn merkleblock_serialization() {
+        // Got it by running the rpc call
+        // `gettxoutproof '["220ebc64e21abece964927322cba69180ed853bb187fbc6923bac7d010b9d87a"]'`
+        let mb_hex = include_str!("../../tests/data/merkle_block.hex");
+
+        let mb: MerkleBlock = deserialize(&hex!(mb_hex)).unwrap();
+        assert_eq!(get_block_13b8a().block_hash(), mb.header.block_hash());
+        assert_eq!(
+            mb.header.merkle_root,
+            mb.txn.extract_matches(&mut vec![], &mut vec![]).unwrap()
+        );
+        // Serialize again and check that it matches the original bytes
+        assert_eq!(mb_hex, serialize(&mb).to_lower_hex_string().as_str());
+    }
+
+    /// Create a CMerkleBlock using a list of txids which will be found in the
+    /// given block.
+    #[test]
+    fn merkleblock_construct_from_txids_found() {
+        let block = get_block_13b8a();
+
+        let txids: Vec<Txid> = [
+            "74d681e0e03bafa802c8aa084379aa98d9fcd632ddc2ed9782b586ec87451f20",
+            "f9fc751cb7dc372406a9f8d738d5e6f8f63bab71986a39cf36ee70ee17036d07",
+        ]
+        .iter()
+        .map(|hex| hex.parse::<Txid>().unwrap())
+        .collect();
+
+        let txid1 = txids[0];
+        let txid2 = txids[1];
+        let txids = [txid1, txid2];
+
+        let merkle_block = MerkleBlock::from_block_with_predicate(&block, |t| txids.contains(t));
+
+        assert_eq!(merkle_block.header.block_hash(), block.block_hash());
+
+        let mut matches: Vec<Txid> = vec![];
+        let mut index: Vec<u32> = vec![];
+
+        assert_eq!(
+            merkle_block.txn.extract_matches(&mut matches, &mut index).unwrap(),
+            block.header.merkle_root
+        );
+        assert_eq!(matches.len(), 2);
+
+        // Ordered by occurrence in depth-first tree traversal.
+        assert_eq!(matches[0], txid2);
+        assert_eq!(index[0], 1);
+
+        assert_eq!(matches[1], txid1);
+        assert_eq!(index[1], 8);
+    }
+
+    /// Create a CMerkleBlock using a list of txids which will not be found in the given block
+    #[test]
+    fn merkleblock_construct_from_txids_not_found() {
+        let block = get_block_13b8a();
+        let txids: Vec<Txid> = ["c0ffee00003bafa802c8aa084379aa98d9fcd632ddc2ed9782b586ec87451f20"]
+            .iter()
+            .map(|hex| hex.parse::<Txid>().unwrap())
+            .collect();
+
+        let merkle_block = MerkleBlock::from_block_with_predicate(&block, |t| txids.contains(t));
+
+        assert_eq!(merkle_block.header.block_hash(), block.block_hash());
+
+        let mut matches: Vec<Txid> = vec![];
+        let mut index: Vec<u32> = vec![];
+
+        assert_eq!(
+            merkle_block.txn.extract_matches(&mut matches, &mut index).unwrap(),
+            block.header.merkle_root
+        );
+        assert_eq!(matches.len(), 0);
+        assert_eq!(index.len(), 0);
+    }
+
+    #[cfg(feature = "rand-std")]
+    impl PartialMerkleTree {
+        /// Flip one bit in one of the hashes - this should break the authentication
+        fn damage(&mut self, rng: &mut ThreadRng) {
+            let n = rng.gen_range(0..self.hashes.len());
+            let bit = rng.gen::<u8>();
+            let hashes = &mut self.hashes;
+            let mut hash = hashes[n].to_byte_array();
+            hash[(bit >> 3) as usize] ^= 1 << (bit & 7);
+            hashes[n] = TxMerkleNode::from_slice(&hash).unwrap();
+        }
+    }
+
+    /// Returns a real block (0000000000013b8ab2cd513b0261a14096412195a72a0c4827d229dcc7e0f7af)
+    /// with 9 txs.
+    fn get_block_13b8a() -> Block {
+        use hex::FromHex;
+        let block_hex = include_str!("../../tests/data/block_13b8a.hex");
+        deserialize(&Vec::from_hex(block_hex).unwrap()).unwrap()
+    }
+
+    macro_rules! check_calc_tree_width {
+        ($($test_name:ident, $num_transactions:literal, $height:literal, $expected_width:literal);* $(;)?) => {
+            $(
+                #[test]
+                fn $test_name() {
+                    let pmt = PartialMerkleTree {
+                        num_transactions: $num_transactions,
+                        bits: vec![],
+                        hashes: vec![],
+                    };
+                    let got = pmt.calc_tree_width($height);
+                    assert_eq!(got, $expected_width)
+                }
+            )*
+        }
+    }
+
+    // tree_width_<id> <num txs> <height> <expected_width>
+    //
+    // height 0 is the bottom of the tree, where the leaves are.
+    check_calc_tree_width! {
+        tree_width_01, 1, 0, 1;
+        //
+        tree_width_02, 2, 0, 2;
+        tree_width_03, 2, 1, 1;
+        //
+        tree_width_04, 3, 0, 3;
+        tree_width_05, 3, 1, 2;
+        tree_width_06, 3, 2, 1;
+        //
+        tree_width_07, 4, 0, 4;
+        tree_width_08, 4, 1, 2;
+        tree_width_09, 4, 2, 1;
+        //
+        tree_width_10, 5, 0, 5;
+        tree_width_11, 5, 1, 3;
+        tree_width_12, 5, 2, 2;
+        tree_width_13, 5, 3, 1;
+        //
+        tree_width_14, 6, 0, 6;
+        tree_width_15, 6, 1, 3;
+        tree_width_16, 6, 2, 2;
+        tree_width_17, 6, 3, 1;
+        //
+        tree_width_18, 7, 0, 7;
+        tree_width_19, 7, 1, 4;
+        tree_width_20, 7, 2, 2;
+        tree_width_21, 7, 3, 1;
+    }
+
+    #[test]
+    fn regression_2606() {
+        // Attempt
+        let bytes = hex!(
+            "000006000000000000000004ee00000004c7f1ccb1000000ffff000000010000\
+             0000ffffffffff1f000000000400000000000002000000000500000000000000\
+             000000000300000000000003000000000200000000ff00000000c7f1ccb10407\
+             00000000000000ccb100c76538b100000004bfa9c251681b1b00040000000025\
+             00000004bfaac251681b1b25\
+         "
+        );
+        let deser = crate::consensus::deserialize::<MerkleBlock>(&bytes);
+        assert!(deser.is_err());
     }
 }

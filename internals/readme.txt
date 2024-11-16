@@ -1,1 +1,0 @@
-base bitcoin-internals 0.3.0

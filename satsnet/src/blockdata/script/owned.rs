@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: CC0-1.0
 
+#[cfg(doc)]
+use core::ops::Deref;
+
 use hex::FromHex;
 use secp256k1::{Secp256k1, Verification};
 

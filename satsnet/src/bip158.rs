@@ -43,7 +43,7 @@ use core::fmt::{self, Display, Formatter};
 
 use hashes::{sha256d, siphash24, Hash};
 use internals::write_err;
-use io::{BufRead, Write};
+use io::{Read, Write};
 
 use crate::blockdata::block::{Block, BlockHash};
 use crate::blockdata::script::Script;
@@ -247,7 +247,7 @@ impl BlockFilterReader {
     where
         I: Iterator,
         I::Item: Borrow<[u8]>,
-        R: BufRead + ?Sized,
+        R: Read + ?Sized,
     {
         self.reader.match_any(reader, query)
     }
@@ -257,7 +257,7 @@ impl BlockFilterReader {
     where
         I: Iterator,
         I::Item: Borrow<[u8]>,
-        R: BufRead + ?Sized,
+        R: Read + ?Sized,
     {
         self.reader.match_all(reader, query)
     }
@@ -280,7 +280,7 @@ impl GcsFilterReader {
     where
         I: Iterator,
         I::Item: Borrow<[u8]>,
-        R: BufRead + ?Sized,
+        R: Read + ?Sized,
     {
         let n_elements: VarInt = Decodable::consensus_decode(reader).unwrap_or(VarInt(0));
         // map hashes to [0, n_elements << grp]
@@ -323,7 +323,7 @@ impl GcsFilterReader {
     where
         I: Iterator,
         I::Item: Borrow<[u8]>,
-        R: BufRead + ?Sized,
+        R: Read + ?Sized,
     {
         let n_elements: VarInt = Decodable::consensus_decode(reader).unwrap_or(VarInt(0));
         // map hashes to [0, n_elements << grp]
@@ -449,7 +449,7 @@ impl GcsFilter {
     /// Golomb-Rice decodes a number from a bit stream (parameter 2^k).
     fn golomb_rice_decode<R>(&self, reader: &mut BitStreamReader<R>) -> Result<u64, io::Error>
     where
-        R: BufRead + ?Sized,
+        R: Read + ?Sized,
     {
         let mut q = 0u64;
         while reader.read(1)? == 1 {
@@ -472,7 +472,7 @@ pub struct BitStreamReader<'a, R: ?Sized> {
     reader: &'a mut R,
 }
 
-impl<'a, R: BufRead + ?Sized> BitStreamReader<'a, R> {
+impl<'a, R: Read + ?Sized> BitStreamReader<'a, R> {
     /// Creates a new [`BitStreamReader`] that reads bitwise from a given `reader`.
     pub fn new(reader: &'a mut R) -> BitStreamReader<'a, R> {
         BitStreamReader { buffer: [0u8], reader, offset: 8 }
@@ -482,7 +482,7 @@ impl<'a, R: BufRead + ?Sized> BitStreamReader<'a, R> {
     ///
     /// # Examples
     /// ```
-    /// # use satsnet::bip158::BitStreamReader;
+    /// # use bitcoin::bip158::BitStreamReader;
     /// # let data = vec![0xff];
     /// # let mut input = data.as_slice();
     /// let mut reader = BitStreamReader::new(&mut input); // input contains all 1's
@@ -555,6 +555,187 @@ impl<'a, W: Write> BitStreamWriter<'a, W> {
             Ok(1)
         } else {
             Ok(0)
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+
+    use hex::test_hex_unwrap as hex;
+    use serde_json::Value;
+
+    use super::*;
+    use crate::consensus::encode::deserialize;
+    use crate::ScriptBuf;
+
+    #[test]
+    fn test_blockfilters() {
+        // test vectors from: https://github.com/jimpo/bitcoin/blob/c7efb652f3543b001b4dd22186a354605b14f47e/src/test/data/blockfilters.json
+        let data = include_str!("../tests/data/blockfilters.json");
+
+        let testdata = serde_json::from_str::<Value>(data).unwrap().as_array().unwrap().clone();
+        for t in testdata.iter().skip(1) {
+            let block_hash = t.get(1).unwrap().as_str().unwrap().parse::<BlockHash>().unwrap();
+            let block: Block = deserialize(&hex!(t.get(2).unwrap().as_str().unwrap())).unwrap();
+            assert_eq!(block.block_hash(), block_hash);
+            let scripts = t.get(3).unwrap().as_array().unwrap();
+            let previous_filter_header =
+                t.get(4).unwrap().as_str().unwrap().parse::<FilterHeader>().unwrap();
+            let filter_content = hex!(t.get(5).unwrap().as_str().unwrap());
+            let filter_header =
+                t.get(6).unwrap().as_str().unwrap().parse::<FilterHeader>().unwrap();
+
+            let mut txmap = HashMap::new();
+            let mut si = scripts.iter();
+            for tx in block.txdata.iter().skip(1) {
+                for input in tx.input.iter() {
+                    txmap.insert(
+                        input.previous_output,
+                        ScriptBuf::from(hex!(si.next().unwrap().as_str().unwrap())),
+                    );
+                }
+            }
+
+            let filter = BlockFilter::new_script_filter(&block, |o| {
+                if let Some(s) = txmap.get(o) {
+                    Ok(s.clone())
+                } else {
+                    Err(Error::UtxoMissing(*o))
+                }
+            })
+            .unwrap();
+
+            let test_filter = BlockFilter::new(filter_content.as_slice());
+
+            assert_eq!(test_filter.content, filter.content);
+
+            let block_hash = &block.block_hash();
+            assert!(filter
+                .match_all(
+                    block_hash,
+                    &mut txmap.iter().filter_map(|(_, s)| if !s.is_empty() {
+                        Some(s.as_bytes())
+                    } else {
+                        None
+                    })
+                )
+                .unwrap());
+
+            for script in txmap.values() {
+                let query = [script];
+                if !script.is_empty() {
+                    assert!(filter
+                        .match_any(block_hash, &mut query.iter().map(|s| s.as_bytes()))
+                        .unwrap());
+                }
+            }
+
+            assert_eq!(filter_header, filter.filter_header(&previous_filter_header));
+        }
+    }
+
+    #[test]
+    fn test_filter() {
+        let mut patterns = BTreeSet::new();
+
+        patterns.insert(hex!("000000"));
+        patterns.insert(hex!("111111"));
+        patterns.insert(hex!("222222"));
+        patterns.insert(hex!("333333"));
+        patterns.insert(hex!("444444"));
+        patterns.insert(hex!("555555"));
+        patterns.insert(hex!("666666"));
+        patterns.insert(hex!("777777"));
+        patterns.insert(hex!("888888"));
+        patterns.insert(hex!("999999"));
+        patterns.insert(hex!("aaaaaa"));
+        patterns.insert(hex!("bbbbbb"));
+        patterns.insert(hex!("cccccc"));
+        patterns.insert(hex!("dddddd"));
+        patterns.insert(hex!("eeeeee"));
+        patterns.insert(hex!("ffffff"));
+
+        let mut out = Vec::new();
+        {
+            let mut writer = GcsFilterWriter::new(&mut out, 0, 0, M, P);
+            for p in &patterns {
+                writer.add_element(p.as_slice());
+            }
+            writer.finish().unwrap();
+        }
+
+        let bytes = out;
+
+        {
+            let query = [hex!("abcdef"), hex!("eeeeee")];
+            let reader = GcsFilterReader::new(0, 0, M, P);
+            assert!(reader
+                .match_any(&mut bytes.as_slice(), &mut query.iter().map(|v| v.as_slice()))
+                .unwrap());
+        }
+        {
+            let query = [hex!("abcdef"), hex!("123456")];
+            let reader = GcsFilterReader::new(0, 0, M, P);
+            assert!(!reader
+                .match_any(&mut bytes.as_slice(), &mut query.iter().map(|v| v.as_slice()))
+                .unwrap());
+        }
+        {
+            let reader = GcsFilterReader::new(0, 0, M, P);
+            let mut query = Vec::new();
+            for p in &patterns {
+                query.push(p.clone());
+            }
+            assert!(reader
+                .match_all(&mut bytes.as_slice(), &mut query.iter().map(|v| v.as_slice()))
+                .unwrap());
+        }
+        {
+            let reader = GcsFilterReader::new(0, 0, M, P);
+            let mut query = Vec::new();
+            for p in &patterns {
+                query.push(p.clone());
+            }
+            query.push(hex!("abcdef"));
+            assert!(!reader
+                .match_all(&mut bytes.as_slice(), &mut query.iter().map(|v| v.as_slice()))
+                .unwrap());
+        }
+    }
+
+    #[test]
+    fn test_bit_stream() {
+        let mut out = Vec::new();
+        {
+            let mut writer = BitStreamWriter::new(&mut out);
+            writer.write(0, 1).unwrap(); // 0
+            writer.write(2, 2).unwrap(); // 10
+            writer.write(6, 3).unwrap(); // 110
+            writer.write(11, 4).unwrap(); // 1011
+            writer.write(1, 5).unwrap(); // 00001
+            writer.write(32, 6).unwrap(); // 100000
+            writer.write(7, 7).unwrap(); // 0000111
+            writer.flush().unwrap();
+        }
+        let bytes = out;
+        assert_eq!(
+            "01011010110000110000000001110000",
+            format!("{:08b}{:08b}{:08b}{:08b}", bytes[0], bytes[1], bytes[2], bytes[3])
+        );
+        {
+            let mut input = bytes.as_slice();
+            let mut reader = BitStreamReader::new(&mut input);
+            assert_eq!(reader.read(1).unwrap(), 0);
+            assert_eq!(reader.read(2).unwrap(), 2);
+            assert_eq!(reader.read(3).unwrap(), 6);
+            assert_eq!(reader.read(4).unwrap(), 11);
+            assert_eq!(reader.read(5).unwrap(), 1);
+            assert_eq!(reader.read(6).unwrap(), 32);
+            assert_eq!(reader.read(7).unwrap(), 7);
+            // 4 bits remained
+            assert!(reader.read(5).is_err());
         }
     }
 }

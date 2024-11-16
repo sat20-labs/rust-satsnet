@@ -132,10 +132,12 @@ pub struct Input {
     pub unknown: BTreeMap<raw::Key, Vec<u8>>,
 }
 
-/// A Signature hash type for the corresponding input. As of taproot upgrade, the signature hash
-/// type can be either [`EcdsaSighashType`] or [`TapSighashType`] but it is not possible to know
-/// directly which signature hash type the user is dealing with. Therefore, the user is responsible
-/// for converting to/from [`PsbtSighashType`] from/to the desired signature hash type they need.
+/// A Signature hash type for the corresponding input.
+///
+/// As of taproot upgrade, the signature hash type can be either [`EcdsaSighashType`] or
+/// [`TapSighashType`] but it is not possible to know directly which signature hash type the user is
+/// dealing with. Therefore, the user is responsible for converting to/from [`PsbtSighashType`]
+/// from/to the desired signature hash type they need.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
@@ -522,5 +524,59 @@ where
             Ok(())
         }
         btree_map::Entry::Occupied(_) => Err(psbt::Error::DuplicateKey(raw_key)),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn psbt_sighash_type_ecdsa() {
+        for ecdsa in &[
+            EcdsaSighashType::All,
+            EcdsaSighashType::None,
+            EcdsaSighashType::Single,
+            EcdsaSighashType::AllPlusAnyoneCanPay,
+            EcdsaSighashType::NonePlusAnyoneCanPay,
+            EcdsaSighashType::SinglePlusAnyoneCanPay,
+        ] {
+            let sighash = PsbtSighashType::from(*ecdsa);
+            let s = format!("{}", sighash);
+            let back = PsbtSighashType::from_str(&s).unwrap();
+            assert_eq!(back, sighash);
+            assert_eq!(back.ecdsa_hash_ty().unwrap(), *ecdsa);
+        }
+    }
+
+    #[test]
+    fn psbt_sighash_type_taproot() {
+        for tap in &[
+            TapSighashType::Default,
+            TapSighashType::All,
+            TapSighashType::None,
+            TapSighashType::Single,
+            TapSighashType::AllPlusAnyoneCanPay,
+            TapSighashType::NonePlusAnyoneCanPay,
+            TapSighashType::SinglePlusAnyoneCanPay,
+        ] {
+            let sighash = PsbtSighashType::from(*tap);
+            let s = format!("{}", sighash);
+            let back = PsbtSighashType::from_str(&s).unwrap();
+            assert_eq!(back, sighash);
+            assert_eq!(back.taproot_hash_ty().unwrap(), *tap);
+        }
+    }
+
+    #[test]
+    fn psbt_sighash_type_notstd() {
+        let nonstd = 0xdddddddd;
+        let sighash = PsbtSighashType { inner: nonstd };
+        let s = format!("{}", sighash);
+        let back = PsbtSighashType::from_str(&s).unwrap();
+
+        assert_eq!(back, sighash);
+        assert_eq!(back.ecdsa_hash_ty(), Err(NonStandardSighashTypeError(nonstd)));
+        assert_eq!(back.taproot_hash_ty(), Err(InvalidSighashTypeError(nonstd)));
     }
 }

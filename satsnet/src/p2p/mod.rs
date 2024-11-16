@@ -25,12 +25,12 @@ use core::{fmt, ops};
 
 use hex::FromHex;
 use internals::{debug_from_display, write_err};
-use io::{BufRead, Write};
+use io::{Read, Write};
 
 use crate::consensus::encode::{self, Decodable, Encodable};
 use crate::consensus::Params;
 use crate::prelude::*;
-use crate::Network;
+use crate::network::Network;
 
 #[rustfmt::skip]
 #[doc(inline)]
@@ -204,7 +204,7 @@ impl Encodable for ServiceFlags {
 
 impl Decodable for ServiceFlags {
     #[inline]
-    fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
+    fn consensus_decode<R: Read + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
         Ok(ServiceFlags(Decodable::consensus_decode(r)?))
     }
 }
@@ -215,14 +215,17 @@ pub struct Magic([u8; 4]);
 impl Magic {
     /// Bitcoin mainnet network magic bytes.
     pub const BITCOIN: Self = Self([0xF9, 0xBE, 0xB4, 0xD9]);
-    /// Bitcoin testnet network magic bytes.
+    /// Bitcoin testnet3 network magic bytes.
+    #[deprecated(since = "0.32.4", note = "Use TESTNET3 instead")]
     pub const TESTNET: Self = Self([0x0B, 0x11, 0x09, 0x07]);
+    /// Bitcoin testnet3 network magic bytes.
+    pub const TESTNET3: Self = Self([0x0B, 0x11, 0x09, 0x07]);
+    /// Bitcoin testnet4 network magic bytes.
+    pub const TESTNET4: Self = Self([0x1c, 0x16, 0x3f, 0x28]);
     /// Bitcoin signet network magic bytes.
     pub const SIGNET: Self = Self([0x0A, 0x03, 0xCF, 0x40]);
     /// Bitcoin regtest network magic bytes.
     pub const REGTEST: Self = Self([0xFA, 0xBF, 0xB5, 0xDA]);
-    /// Bitcoin testnet4 network magic bytes.
-    pub const TESTNET4: Self = Self([0x1c, 0x16, 0x3f, 0x28]);
 
     /// Create network magic from bytes.
     pub fn from_bytes(bytes: [u8; 4]) -> Magic { Magic(bytes) }
@@ -252,10 +255,10 @@ impl From<Network> for Magic {
         match network {
             // Note: new network entries must explicitly be matched in `try_from` below.
             Network::Bitcoin => Magic::BITCOIN,
-            Network::Testnet => Magic::TESTNET,
+            Network::Testnet => Magic::TESTNET3,
+            Network::Testnet4 => Magic::TESTNET4,
             Network::Signet => Magic::SIGNET,
             Network::Regtest => Magic::REGTEST,
-            Network::Testnet4 => Magic::TESTNET4,
         }
     }
 }
@@ -267,10 +270,10 @@ impl TryFrom<Magic> for Network {
         match magic {
             // Note: any new network entries must be matched against here.
             Magic::BITCOIN => Ok(Network::Bitcoin),
-            Magic::TESTNET => Ok(Network::Testnet),
+            Magic::TESTNET3 => Ok(Network::Testnet),
+            Magic::TESTNET4 => Ok(Network::Testnet4),
             Magic::SIGNET => Ok(Network::Signet),
             Magic::REGTEST => Ok(Network::Regtest),
-            Magic::TESTNET4 => Ok(Network::Testnet4),
             _ => Err(UnknownMagicError(magic)),
         }
     }
@@ -305,7 +308,7 @@ impl Encodable for Magic {
 }
 
 impl Decodable for Magic {
-    fn consensus_decode<R: BufRead + ?Sized>(reader: &mut R) -> Result<Self, encode::Error> {
+    fn consensus_decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, encode::Error> {
         Ok(Magic(Decodable::consensus_decode(reader)?))
     }
 }
@@ -377,4 +380,66 @@ impl fmt::Display for UnknownMagicError {
 #[cfg(feature = "std")]
 impl std::error::Error for UnknownMagicError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { None }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn service_flags_test() {
+        let all = [
+            ServiceFlags::NETWORK,
+            ServiceFlags::GETUTXO,
+            ServiceFlags::BLOOM,
+            ServiceFlags::WITNESS,
+            ServiceFlags::COMPACT_FILTERS,
+            ServiceFlags::NETWORK_LIMITED,
+        ];
+
+        let mut flags = ServiceFlags::NONE;
+        for f in all.iter() {
+            assert!(!flags.has(*f));
+        }
+
+        flags |= ServiceFlags::WITNESS;
+        assert_eq!(flags, ServiceFlags::WITNESS);
+
+        let mut flags2 = flags | ServiceFlags::GETUTXO;
+        for f in all.iter() {
+            assert_eq!(flags2.has(*f), *f == ServiceFlags::WITNESS || *f == ServiceFlags::GETUTXO);
+        }
+
+        flags2 ^= ServiceFlags::WITNESS;
+        assert_eq!(flags2, ServiceFlags::GETUTXO);
+
+        flags2 |= ServiceFlags::COMPACT_FILTERS;
+        flags2 ^= ServiceFlags::GETUTXO;
+        assert_eq!(flags2, ServiceFlags::COMPACT_FILTERS);
+
+        // Test formatting.
+        assert_eq!("ServiceFlags(NONE)", ServiceFlags::NONE.to_string());
+        assert_eq!("ServiceFlags(WITNESS)", ServiceFlags::WITNESS.to_string());
+        let flag = ServiceFlags::WITNESS | ServiceFlags::BLOOM | ServiceFlags::NETWORK;
+        assert_eq!("ServiceFlags(NETWORK|BLOOM|WITNESS)", flag.to_string());
+        let flag = ServiceFlags::WITNESS | 0xf0.into();
+        assert_eq!("ServiceFlags(WITNESS|COMPACT_FILTERS|0xb0)", flag.to_string());
+    }
+
+    #[test]
+    fn magic_from_str() {
+        let known_network_magic_strs = [
+            ("f9beb4d9", Network::Bitcoin),
+            ("0b110907", Network::Testnet),
+            ("1c163f28", Network::Testnet4),
+            ("fabfb5da", Network::Regtest),
+            ("0a03cf40", Network::Signet),
+        ];
+
+        for (magic_str, network) in &known_network_magic_strs {
+            let magic: Magic = Magic::from_str(magic_str).unwrap();
+            assert_eq!(Network::try_from(magic).unwrap(), *network);
+            assert_eq!(&magic.to_string(), magic_str);
+        }
+    }
 }

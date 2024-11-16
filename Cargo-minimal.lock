@@ -15,11 +15,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
-name = "satsnet-base58ck"
+name = "base58ck"
 version = "0.1.0"
 dependencies = [
- "satsnet-internals",
- "satsnet_hashes",
+ "bitcoin-internals",
+ "bitcoin_hashes",
  "hex-conservative",
 ]
 
@@ -46,17 +46,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "satsnet"
-version = "0.32.0"
+name = "bitcoin"
+version = "0.32.4"
 dependencies = [
- "satsnet-base58ck",
+ "base58ck",
  "base64",
  "bech32",
  "bincode",
- "satsnet-internals",
- "satsnet-io",
- "satsnet-units",
- "satsnet_hashes",
+ "bitcoin-internals",
+ "bitcoin-io",
+ "bitcoin-units",
+ "bitcoin_hashes",
  "bitcoinconsensus",
  "hex-conservative",
  "hex_lit",
@@ -69,31 +69,42 @@ dependencies = [
 ]
 
 [[package]]
-name = "satsnet-internals"
+name = "bitcoin-fuzz"
+version = "0.0.1"
+dependencies = [
+ "bitcoin",
+ "honggfuzz",
+ "serde",
+ "serde_cbor",
+ "serde_json",
+]
+
+[[package]]
+name = "bitcoin-internals"
 version = "0.3.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
-name = "satsnet-io"
+name = "bitcoin-io"
 version = "0.1.2"
 
 [[package]]
-name = "satsnet-units"
+name = "bitcoin-units"
 version = "0.1.1"
 dependencies = [
- "satsnet-internals",
+ "bitcoin-internals",
  "serde",
  "serde_json",
  "serde_test",
 ]
 
 [[package]]
-name = "satsnet_hashes"
+name = "bitcoin_hashes"
 version = "0.14.0"
 dependencies = [
- "satsnet-io",
+ "bitcoin-io",
  "hex-conservative",
  "schemars",
  "serde",
@@ -345,7 +356,7 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e0cc0f1cf93f4969faf3ea1c7d8a9faed25918d96affa959720823dfe86d4f3"
 dependencies = [
- "satsnet_hashes",
+ "bitcoin_hashes",
  "rand",
  "secp256k1-sys",
  "serde",

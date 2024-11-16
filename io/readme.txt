@@ -1,1 +1,0 @@
-base bitcoin-io 0.1.2

@@ -41,6 +41,8 @@
 #![allow(clippy::needless_question_mark)] // https://github.com/rust-bitcoin/rust-bitcoin/pull/2134
 #![allow(clippy::manual_range_contains)] // More readable than clippy's format.
 #![allow(clippy::needless_borrows_for_generic_args)] // https://github.com/rust-lang/rust-clippy/issues/12454
+// For 0.32.x releases only.
+#![allow(deprecated)]
 
 // Disable 16-bit support at least for now as we can't guarantee it yet.
 #[cfg(target_pointer_width = "16")]
@@ -48,6 +50,9 @@ compile_error!(
     "rust-bitcoin currently only supports architectures with pointers wider than 16 bits, let us
     know if you want 16-bit support. Note that we do NOT guarantee that we will implement it!"
 );
+
+#[cfg(bench)]
+extern crate test;
 
 #[macro_use]
 extern crate alloc;
@@ -65,7 +70,7 @@ pub extern crate hashes;
 /// Re-export the `hex-conservative` crate.
 pub extern crate hex;
 
-/// Re-export the `satsnet-io` crate.
+/// Re-export the `bitcoin-io` crate.
 pub extern crate io;
 
 /// Re-export the `ordered` crate.
@@ -80,6 +85,9 @@ pub extern crate secp256k1;
 #[macro_use]
 extern crate actual_serde as serde;
 
+#[cfg(test)]
+#[macro_use]
+mod test_macros;
 mod internal_macros;
 #[cfg(feature = "serde")]
 mod serde_utils;
@@ -165,7 +173,7 @@ pub mod amount {
     //! We refer to the documentation on the types for more information.
 
     use crate::consensus::{encode, Decodable, Encodable};
-    use crate::io::{BufRead, Write};
+    use crate::io::{Read, Write};
 
     #[rustfmt::skip]            // Keep public re-exports separate.
     #[doc(inline)]
@@ -177,7 +185,7 @@ pub mod amount {
 
     impl Decodable for Amount {
         #[inline]
-        fn consensus_decode<R: BufRead + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
+        fn consensus_decode<R: Read + ?Sized>(r: &mut R) -> Result<Self, encode::Error> {
             Ok(Amount::from_sat(Decodable::consensus_decode(r)?))
         }
     }

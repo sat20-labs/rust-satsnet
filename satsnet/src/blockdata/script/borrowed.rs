@@ -25,7 +25,7 @@ use crate::taproot::{LeafVersion, TapLeafHash, TapNodeHash};
 
 /// Bitcoin script slice.
 ///
-/// *[See also the `satsnet::blockdata::script` module](crate::blockdata::script).*
+/// *[See also the `bitcoin::blockdata::script` module](crate::blockdata::script).*
 ///
 /// `Script` is a script slice, the most primitive script type. It's usually seen in its borrowed
 /// form `&Script`. It is always encoded as a series of bytes representing the opcodes and data
@@ -394,6 +394,25 @@ impl Script {
         }
     }
 
+    /// Get redeemScript following BIP16 rules regarding P2SH spending.
+    ///
+    /// This does not guarantee that this represents a P2SH input [`Script`].
+    /// It merely gets the last push of the script. Use
+    /// [`Script::is_p2sh`](crate::blockdata::script::Script::is_p2sh) on the
+    /// scriptPubKey to check whether it is actually a P2SH script.
+    pub fn redeem_script(&self) -> Option<&Script> {
+        // Script must consist entirely of pushes.
+        if self.instructions().any(|i| i.is_err() || i.unwrap().push_bytes().is_none()) {
+            return None;
+        }
+
+        if let Some(Ok(Instruction::PushBytes(b))) = self.instructions().last() {
+            Some(Script::from_bytes(b.as_bytes()))
+        } else {
+            None
+        }
+    }
+
     /// Returns the minimum value an output with this script should have in order to be
     /// broadcastable on today’s Bitcoin network.
     #[deprecated(since = "0.32.0", note = "use minimal_non_dust and friends")]
@@ -674,3 +693,31 @@ delegate_index!(
     RangeToInclusive<usize>,
     (Bound<usize>, Bound<usize>)
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::blockdata::script::witness_program::WitnessProgram;
+
+    #[test]
+    fn shortest_witness_program() {
+        let bytes = [0x00; 2]; // Arbitrary bytes, witprog must be between 2 and 40.
+        let version = WitnessVersion::V15; // Arbitrary version number, intentionally not 0 or 1.
+
+        let p = WitnessProgram::new(version, &bytes).expect("failed to create witness program");
+        let script = ScriptBuf::new_witness_program(&p);
+
+        assert_eq!(script.witness_version(), Some(version));
+    }
+
+    #[test]
+    fn longest_witness_program() {
+        let bytes = [0x00; 40]; // Arbitrary bytes, witprog must be between 2 and 40.
+        let version = WitnessVersion::V16; // Arbitrary version number, intentionally not 0 or 1.
+
+        let p = WitnessProgram::new(version, &bytes).expect("failed to create witness program");
+        let script = ScriptBuf::new_witness_program(&p);
+
+        assert_eq!(script.witness_version(), Some(version));
+    }
+}
