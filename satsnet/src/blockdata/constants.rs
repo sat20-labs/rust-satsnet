@@ -181,6 +181,28 @@ pub fn genesis_block(params: impl AsRef<Params>) -> Block {
             },
             txdata,
         },
+        Network::Satsnet => Block {
+            header: block::Header {
+                version: block::Version::ONE,
+                prev_blockhash: Hash::all_zeros(),
+                merkle_root,
+                time: 1231006505,
+                bits: CompactTarget::from_consensus(0x1d00ffff),
+                nonce: 2083236893,
+            },
+            txdata,
+        },
+        Network::Satstestnet => Block {
+            header: block::Header {
+                version: block::Version::ONE,
+                prev_blockhash: Hash::all_zeros(),
+                merkle_root,
+                time: 1714777860,
+                bits: CompactTarget::from_consensus(0x1d00ffff),
+                nonce: 393743547,
+            },
+            txdata,
+        },
     }
 }
 
@@ -223,6 +245,16 @@ impl ChainHash {
         6, 34, 110, 70, 17, 26, 11, 89, 202, 175, 18, 96, 67, 235, 91, 191, 40, 195, 79, 58, 94,
         51, 42, 31, 199, 178, 183, 60, 241, 136, 145, 15,
     ]);
+    /// `ChainHash` for satsnet mainnet.
+    pub const SATSNET: Self = Self([
+        111, 226, 140, 10, 182, 241, 179, 114, 193, 166, 162, 70, 174, 99, 247, 79, 147, 30, 131,
+        101, 225, 90, 8, 156, 104, 214, 25, 0, 0, 0, 0, 0,
+    ]);
+    /// `ChainHash` for satsnet testnet.
+    pub const SATSTESTNET: Self = Self([
+        67, 240, 139, 218, 176, 80, 227, 91, 86, 124, 134, 75, 145, 244, 127, 80, 174, 114, 90,
+        226, 222, 83, 188, 251, 186, 242, 132, 218, 0, 0, 0, 0,
+    ]);
 
     /// Returns the hash of the `network` genesis block for use as a chain hash.
     ///
@@ -235,6 +267,8 @@ impl ChainHash {
             Network::Testnet4 => Self::TESTNET4,
             Network::Signet => Self::SIGNET,
             Network::Regtest => Self::REGTEST,
+            Network::Satsnet => Self::SATSNET,
+            Network::Satstestnet => Self::SATSTESTNET,
         }
     }
 
@@ -249,6 +283,8 @@ impl ChainHash {
             Network::Testnet4 => Self::TESTNET4,
             Network::Signet => Self::SIGNET,
             Network::Regtest => Self::REGTEST,
+            Network::Satsnet => Self::SATSNET,
+            Network::Satstestnet => Self::SATSTESTNET,
         }
     }
 

@@ -226,6 +226,10 @@ impl Magic {
     pub const SIGNET: Self = Self([0x0A, 0x03, 0xCF, 0x40]);
     /// Bitcoin regtest network magic bytes.
     pub const REGTEST: Self = Self([0xFA, 0xBF, 0xB5, 0xDA]);
+    /// Satsnet mainnet network magic bytes.
+    pub const SATSNET: Self = Self([0x16, 0x29, 0x08, 0xae]);
+    /// Satsnet testnet network magic bytes.
+    pub const SATSTESTNET: Self = Self([0x17, 0x28, 0x18, 0xae]);
 
     /// Create network magic from bytes.
     pub fn from_bytes(bytes: [u8; 4]) -> Magic { Magic(bytes) }
@@ -259,6 +263,8 @@ impl From<Network> for Magic {
             Network::Testnet4 => Magic::TESTNET4,
             Network::Signet => Magic::SIGNET,
             Network::Regtest => Magic::REGTEST,
+            Network::Satsnet => Magic::SATSNET,
+            Network::Satstestnet => Magic::SATSTESTNET,
         }
     }
 }
@@ -274,6 +280,8 @@ impl TryFrom<Magic> for Network {
             Magic::TESTNET4 => Ok(Network::Testnet4),
             Magic::SIGNET => Ok(Network::Signet),
             Magic::REGTEST => Ok(Network::Regtest),
+            Magic::SATSNET => Ok(Network::Satsnet),
+            Magic::SATSTESTNET => Ok(Network::Satstestnet),
             _ => Err(UnknownMagicError(magic)),
         }
     }
