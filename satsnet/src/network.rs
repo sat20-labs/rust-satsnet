@@ -130,7 +130,7 @@ impl Network {
             Network::Signet => "signet",
             Network::Regtest => "regtest",
             Network::Satsnet => "satsnet",
-            Network::Satstestnet => "satsnettest",
+            Network::Satstestnet => "satstestnet",
         }
     }
 
@@ -153,7 +153,7 @@ impl Network {
             "signet" => Signet,
             "regtest" => Regtest,
             "satsnet" => Satsnet,
-            "satsnettest" => Satstestnet,
+            "satstestnet" => Satstestnet,
             _ => return Err(ParseNetworkError(core_arg.to_owned())),
         };
         Ok(network)
@@ -241,7 +241,7 @@ pub mod as_core_arg {
                 Network::from_core_arg(s).map_err(|_| {
                     E::invalid_value(
                         serde::de::Unexpected::Str(s),
-                        &"bitcoin network encoded as a string (either main, test, testnet4, satsnet, satsnettest, signet or regtest)",
+                        &"bitcoin network encoded as a string (either main, test, testnet4, satsnet, satstestnet, signet or regtest)",
                     )
                 })
             }
@@ -249,7 +249,7 @@ pub mod as_core_arg {
             fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
                 write!(
                     formatter,
-                    "bitcoin network encoded as a string (either main, test, testnet4, satsnet, satsnettest, signet or regtest)"
+                    "bitcoin network encoded as a string (either main, test, testnet4, satsnet, satstestnet, signet or regtest)"
                 )
             }
         }

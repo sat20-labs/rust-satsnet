@@ -188,9 +188,9 @@ impl fmt::Display for AddressInner {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum KnownHrp {
-    /// The main Bitcoin network and The Satsnet network.
+    /// The main Bitcoin network and The satsnet network.
     Mainnet,
-    /// The test networks, testnet (testnet3), testnet4, satsnettest and signet.
+    /// The test networks, testnet (testnet3), testnet4, satstestnet and signet.
     Testnets,
     /// The regtest network.
     Regtest,
