@@ -67,10 +67,16 @@ user_enum! {
         Bitcoin <-> "bitcoin",
         /// Bitcoin's testnet
         Testnet <-> "testnet",
+        /// Bitcoin's testnet4
+        Testnet4 <-> "testnet4",
         /// Bitcoin's signet
         Signet <-> "signet",
         /// Bitcoin's regtest
-        Regtest <-> "regtest"
+        Regtest <-> "regtest",
+        /// satsnet
+        Satsnet <-> "satsnet",
+        /// satstestnet
+        Satstestnet <-> "satstestnet"
     }
 }
 
@@ -112,8 +118,11 @@ impl Network {
         match self {
             Network::Bitcoin => 0xD9B4BEF9,
             Network::Testnet => 0x0709110B,
+            Network::Testnet4 => 0x1C163F28,
             Network::Signet  => 0x40CF030A,
             Network::Regtest => 0xDAB5BFFA,
+            Network::Satsnet => 0xAE082916,
+            Network::Satstestnet => 0xAE182817,
         }
     }
 }
@@ -309,13 +318,19 @@ mod tests {
     fn string_test() {
         assert_eq!(Network::Bitcoin.to_string(), "bitcoin");
         assert_eq!(Network::Testnet.to_string(), "testnet");
+        assert_eq!(Network::Testnet4.to_string(), "testnet4");
         assert_eq!(Network::Regtest.to_string(), "regtest");
         assert_eq!(Network::Signet.to_string(), "signet");
+        assert_eq!(Network::Satsnet.to_string(), "satsnet");
+        assert_eq!(Network::Satstestnet.to_string(), "satstestnet");
 
         assert_eq!("bitcoin".parse::<Network>().unwrap(), Network::Bitcoin);
         assert_eq!("testnet".parse::<Network>().unwrap(), Network::Testnet);
+        assert_eq!("testnet4".parse::<Network>().unwrap(), Network::Testnet4);
         assert_eq!("regtest".parse::<Network>().unwrap(), Network::Regtest);
         assert_eq!("signet".parse::<Network>().unwrap(), Network::Signet);
+        assert_eq!("satsnet".parse::<Network>().unwrap(), Network::Satsnet);
+        assert_eq!("satstestnet".parse::<Network>().unwrap(), Network::Satstestnet);
         assert!("fakenet".parse::<Network>().is_err());
     }
 

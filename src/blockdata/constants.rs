@@ -148,6 +148,19 @@ pub fn genesis_block(network: Network) -> Block {
                 txdata,
             }
         }
+        Network::Testnet4 => {
+            Block {
+                header: BlockHeader {
+                    version: 1,
+                    prev_blockhash: Default::default(),
+                    merkle_root,
+                    time: 1714777860,
+                    bits: 0x1d00ffff,
+                    nonce: 393743547
+                },
+                txdata,
+            }
+        }
         Network::Signet => {
             Block {
                 header: BlockHeader {
@@ -170,6 +183,32 @@ pub fn genesis_block(network: Network) -> Block {
                     time: 1296688602,
                     bits: 0x207fffff,
                     nonce: 2
+                },
+                txdata,
+            }
+        }
+        Network::Satsnet => {
+            Block {
+                header: BlockHeader {
+                    version: 1,
+                    prev_blockhash: Default::default(),
+                    merkle_root,
+                    time: 1231006505,
+                    bits: 0x1d00ffff,
+                    nonce: 2083236893
+                },
+                txdata,
+            }
+        }
+        Network::Satstestnet => {
+            Block {
+                header: BlockHeader {
+                    version: 1,
+                    prev_blockhash: Default::default(),
+                    merkle_root,
+                    time: 1714777860,
+                    bits: 0x1d00ffff,
+                    nonce: 393743547
                 },
                 txdata,
             }

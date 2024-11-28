@@ -710,8 +710,10 @@ impl Address {
         match (self.network, network) {
             (a, b) if a == b => true,
             (Network::Bitcoin, _) | (_, Network::Bitcoin) => false,
+            (Network::Satsnet, _) | (_, Network::Satsnet) => false,
             (Network::Regtest, _) | (_, Network::Regtest) if !is_legacy => false,
-            (Network::Testnet, _) | (Network::Regtest, _) | (Network::Signet, _) => true
+            (Network::Testnet, _) | (Network::Regtest, _) | (Network::Signet, _) | (_, Network::Testnet4) | (_, Network::Satstestnet)  => true,
+            (Network::Testnet4, _) | (Network::Satstestnet, _) => true,
         }
     }
 
@@ -753,15 +755,18 @@ impl fmt::Display for Address {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let p2pkh_prefix = match self.network {
             Network::Bitcoin => PUBKEY_ADDRESS_PREFIX_MAIN,
-            Network::Testnet | Network::Signet | Network::Regtest => PUBKEY_ADDRESS_PREFIX_TEST,
+            Network::Satsnet => PUBKEY_ADDRESS_PREFIX_MAIN,
+            Network::Testnet | Network::Signet | Network::Regtest | Network::Testnet4 | Network::Satstestnet => PUBKEY_ADDRESS_PREFIX_TEST,
         };
         let p2sh_prefix = match self.network {
             Network::Bitcoin => SCRIPT_ADDRESS_PREFIX_MAIN,
-            Network::Testnet | Network::Signet | Network::Regtest => SCRIPT_ADDRESS_PREFIX_TEST,
+            Network::Satsnet => SCRIPT_ADDRESS_PREFIX_MAIN,
+            Network::Testnet | Network::Signet | Network::Regtest | Network::Testnet4 | Network::Satstestnet => SCRIPT_ADDRESS_PREFIX_TEST,
         };
         let bech32_hrp = match self.network {
             Network::Bitcoin => "bc",
-            Network::Testnet | Network::Signet => "tb",
+            Network::Satsnet => "bc",
+            Network::Testnet | Network::Signet | Network::Testnet4 | Network::Satstestnet => "tb",
             Network::Regtest => "bcrt",
         };
         let encoding = AddressEncoding {
