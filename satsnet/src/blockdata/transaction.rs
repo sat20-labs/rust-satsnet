@@ -529,65 +529,87 @@ impl fmt::Debug for Sequence {
 
 units::impl_parse_str_from_int_infallible!(Sequence, u32, from_consensus);
 
-/// Bitcoin transaction output sat range.
+/// Bitcoin transaction output AssetInfo:AssetName.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
-pub struct SatsRange {
-    /// The start of the range in satoshis.
-    pub start: u64,
-    /// The size of the range in satoshis.
-    pub size: u64,
+pub struct AssetName {
+    /// Required. Examples: ordx, ordinals, brc20, runes, eth, etc.
+    pub protocol: String,
+    /// Optional. Default is "ft", refer to indexer's definition
+    pub type_: String,
+    /// If Type is nft, ticker is collection name#inscription number (or satoshi number)
+    pub ticker: String,
 }
 
-// impl_consensus_encoding!(SatsRange, start, size);
+impl_consensus_encoding!(AssetName, protocol, type_, ticker);
+// impl crate::consensus::Encodable for AssetName {
+//     #[inline]
+//     fn consensus_encode<R: crate::io::Write + ?Sized>(
+//         &self,
+//         r: &mut R,
+//     ) -> core::result::Result<usize, crate::io::Error> {
+//         let mut len = 0;
+//         len += self.protocol.consensus_encode(r)?;
+//         len += self.type_.consensus_encode(r)?;
+//         len += self.ticker.consensus_encode(r)?;
+//         Ok(len)
+//     }
+// }
 
-impl crate::consensus::Encodable for SatsRange {
+// impl crate::consensus::Decodable for AssetName {
+//     #[inline]
+//     fn consensus_decode_from_finite_reader<R: Read + ?Sized>(
+//         r: &mut R,
+//     ) -> core::result::Result<AssetName, crate::consensus::encode::Error> {
+//         let protocol = String::consensus_decode( r)? as String;
+//         let type_ = String::consensus_decode( r)? as String;
+//         let ticker = String::consensus_decode( r)? as String;
+//         Ok(AssetName {
+//             protocol: protocol,
+//             type_: type_,
+//             ticker: ticker,
+//         })
+//     }
+// }
+
+/// Bitcoin transaction output AssetInfo.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
+pub struct AssetInfo {
+    /// Asset name
+    pub name: AssetName,
+    /// Asset quantity
+    pub amount: i64,
+    /// Non-zero -> bound satoshi, 0 -> unbound satoshi
+    pub binding_sat: u16,
+}
+
+impl Encodable for AssetInfo {
     #[inline]
-    fn consensus_encode<R: crate::io::Write + ?Sized>(
-        &self,
-        r: &mut R,
-    ) -> core::result::Result<usize, crate::io::Error> {
+    fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
         let mut len = 0;
-
-        // Encode `start` using VarInt
-        let start_varint = VarInt(self.start);
-        len += start_varint.consensus_encode(r)?;
-
-        // Encode `size` using VarInt
-        let size_varint = VarInt(self.size);
-        len += size_varint.consensus_encode( r)?;
+        len += self.name.consensus_encode(w)?;
+        len += VarInt(self.amount as u64).consensus_encode(w)?;
+        len += VarInt(self.binding_sat as u64).consensus_encode(w)?;
 
         Ok(len)
     }
 }
 
-impl crate::consensus::Decodable for SatsRange {
+impl Decodable for AssetInfo {
     #[inline]
     fn consensus_decode_from_finite_reader<R: Read + ?Sized>(
         r: &mut R,
-    ) -> core::result::Result<SatsRange, crate::consensus::encode::Error> {
-        // let mut r = r.take(crate::consensus::encode::MAX_VEC_SIZE as u64);
-        // let start = VarInt::consensus_decode(&mut r)?.0 as u64;
-        // let size = VarInt::consensus_decode(&mut r)?.0 as u64;
-        let start = VarInt::consensus_decode( r)?.0 as u64;
-        let size = VarInt::consensus_decode( r)?.0 as u64;
-        Ok(SatsRange {
-            start: start,
-            size: size,
-        })
-    }
-
-    #[inline]
-    fn consensus_decode<R: Read + ?Sized>(
-        r: &mut R,
-    ) -> core::result::Result<SatsRange, crate::consensus::encode::Error> {
-        let mut r = r.take(crate::consensus::encode::MAX_VEC_SIZE as u64);
-        let start = VarInt::consensus_decode(&mut r)?.0 as u64;
-        let size = VarInt::consensus_decode(&mut r)?.0 as u64;
-        Ok(SatsRange {
-            start: start,
-            size: size,
+    ) -> core::result::Result<AssetInfo, crate::consensus::encode::Error>{
+        let name = AssetName::consensus_decode(r)?;
+        let amount = VarInt::consensus_decode(r)?.0 as i64;
+        let binding_sat = VarInt::consensus_decode(r)?.0 as u16;
+        Ok(AssetInfo {
+            name,
+            amount,
+            binding_sat,
         })
     }
 }
@@ -611,9 +633,9 @@ pub struct TxOut {
     pub value: Amount,
     /// The script which must be satisfied for the output to be spent.
     pub script_pubkey: ScriptBuf,
-    /// Sats index range for the output
+    /// Asset list for the output
     #[cfg(feature = "satsnet")]
-    pub sats_ranges: Vec<SatsRange>,
+    pub assets: Vec<AssetInfo>,
 }
 
 impl TxOut {
@@ -625,7 +647,7 @@ impl TxOut {
     /// This is used as a "null txout" in consensus signing code.
     #[cfg(feature = "satsnet")]
     pub const NULL: Self =
-    TxOut { value: Amount::from_sat(0xffffffffffffffff), script_pubkey: ScriptBuf::new(), sats_ranges: Vec::new(), };
+    TxOut { value: Amount::from_sat(0xffffffffffffffff), script_pubkey: ScriptBuf::new(), assets: Vec::new() };
 
     /// The weight of this output.
     ///
@@ -660,7 +682,7 @@ impl TxOut {
         #[cfg(not(feature = "satsnet"))]
         return TxOut { value: script_pubkey.minimal_non_dust(), script_pubkey };
         #[cfg(feature = "satsnet")]
-        return TxOut { value: script_pubkey.minimal_non_dust(), script_pubkey, sats_ranges: Vec::new() };
+        return TxOut { value: script_pubkey.minimal_non_dust(), script_pubkey, assets: Vec::new() };
     }
 
     /// Creates a `TxOut` with given script and the smallest possible `value` that is **not** dust
@@ -678,7 +700,7 @@ impl TxOut {
         #[cfg(not(feature = "satsnet"))]
         return TxOut { value: script_pubkey.minimal_non_dust_custom(dust_relay_fee), script_pubkey };
         #[cfg(feature = "satsnet")]
-        return TxOut { value: script_pubkey.minimal_non_dust_custom(dust_relay_fee), script_pubkey, sats_ranges: Vec::new() };
+        return TxOut { value: script_pubkey.minimal_non_dust_custom(dust_relay_fee), script_pubkey, assets: Vec::new() };
     }
 }
 
@@ -1241,7 +1263,7 @@ impl fmt::Display for Version {
 #[cfg(not(feature = "satsnet"))]
 impl_consensus_encoding!(TxOut, value, script_pubkey);
 #[cfg(feature = "satsnet")]
-impl_consensus_encoding!(TxOut, value, sats_ranges, script_pubkey);
+impl_consensus_encoding!(TxOut, value, assets, script_pubkey);
 
 impl Encodable for OutPoint {
     fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {

@@ -165,11 +165,18 @@ fn bitcoin_genesis_tx(params: &Params) -> Transaction {
         witness: Witness::default(),
     });
 
+    
     // Outputs
+    let amount = {
+        match params.network {
+            Network::Satsnet | Network::Satstestnet => Amount::from_sat(0), // TODO genesis
+            _ => Amount::from_sat(50 * 100_000_000)
+        }
+    };
     #[cfg(not(feature = "satsnet"))]
-    ret.output.push(TxOut { value: Amount::from_sat(50 * 100_000_000), script_pubkey: out_script });
+    ret.output.push(TxOut { value: amount, script_pubkey: out_script });
     #[cfg(feature = "satsnet")]
-    ret.output.push(TxOut { value: Amount::from_sat(50 * 100_000_000), script_pubkey: out_script, sats_ranges: Vec::new() });
+    ret.output.push(TxOut { value: amount, script_pubkey: out_script, assets: Vec::new() });
     // end
     ret
 }
@@ -180,7 +187,6 @@ pub fn genesis_block(params: impl AsRef<Params>) -> Block {
     let txdata = vec![bitcoin_genesis_tx(params)];
     let hash: sha256d::Hash = txdata[0].compute_txid().into();
     let merkle_root: crate::TxMerkleNode = hash.into();
-
     match params.network {
         Network::Bitcoin => Block {
             header: block::Header {

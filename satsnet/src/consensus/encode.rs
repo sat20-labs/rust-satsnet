@@ -35,7 +35,7 @@ use crate::p2p::{
 use crate::prelude::*;
 use crate::taproot::TapLeafHash;
 #[cfg(feature = "satsnet")]
-use crate::transaction::SatsRange;
+use crate::transaction::AssetInfo;
 
 /// Encoding error.
 #[derive(Debug)]
@@ -691,7 +691,7 @@ impl_vec!(VarInt);
 impl_vec!(ShortId);
 impl_vec!(PrefilledTransaction);
 #[cfg(feature = "satsnet")]
-impl_vec!(SatsRange);
+impl_vec!(AssetInfo);
 
 #[cfg(feature = "std")]
 impl_vec!(Inventory);
