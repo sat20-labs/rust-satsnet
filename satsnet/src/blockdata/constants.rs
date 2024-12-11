@@ -67,6 +67,50 @@ const GENESIS_OUTPUT_PK: [u8; 65] = [
     0x8a, 0x4c, 0x70, 0x2b, 0x6b, 0xf1, 0x1d, 0x5f
 ];
 
+/// TODO genesis
+#[rustfmt::skip]
+const SATSTESTNET_GENESIS_OUTPUT_PK_SCRIPT: [u8; 34] = [
+    0x51, 0x20, 0x1e, 0xca, 0x94, 0xfc, 0x17, 0x5e,
+    0x45, 0xd4, 0x2a, 0x90, 0x7e, 0x97, 0xea, 0xbf,
+    0x3e, 0xc7, 0x6a, 0x32, 0x37, 0x65, 0x35, 0x37,
+    0xcc, 0x0f, 0x11, 0xfa, 0xf4, 0xdf, 0xd8, 0xc0,
+    0xe1, 0x00,
+];
+
+/// TODO genesis
+#[rustfmt::skip]
+const SATSTESTNET_SIGNATURE_SCRIPT: [u8; 50] = [
+    0x00, 0x22, 0x51, 0x20, 0x1e, 0xca, 0x94, 0xfc,
+    0x17, 0x5e, 0x45, 0xd4, 0x2a, 0x90, 0x7e, 0x97,
+    0xea, 0xbf, 0x3e, 0xc7, 0x6a, 0x32, 0x37, 0x65,
+    0x35, 0x37, 0xcc, 0x0f, 0x11, 0xfa, 0xf4, 0xdf,
+    0xd8, 0xc0, 0xe1, 0x00, 0x04, 0xf0, 0x8e, 0x4d,
+    0x67, 0x08, 0xa9, 0x92, 0x3c, 0x0c, 0xf4, 0x5c,
+    0x23, 0x0c,
+];
+
+/// TODO genesis
+#[rustfmt::skip]
+const SATSNET_GENESIS_OUTPUT_PK_SCRIPT: [u8; 34] = [
+    0x51, 0x20, 0x1e, 0xca, 0x94, 0xfc, 0x17, 0x5e,
+    0x45, 0xd4, 0x2a, 0x90, 0x7e, 0x97, 0xea, 0xbf,
+    0x3e, 0xc7, 0x6a, 0x32, 0x37, 0x65, 0x35, 0x37,
+    0xcc, 0x0f, 0x11, 0xfa, 0xf4, 0xdf, 0xd8, 0xc0,
+    0xe1, 0x00,
+];
+
+/// TODO genesis
+#[rustfmt::skip]
+const SATSNET_SIGNATURE_SCRIPT: [u8; 50] = [
+    0x00, 0x22, 0x51, 0x20, 0x1e, 0xca, 0x94, 0xfc,
+    0x17, 0x5e, 0x45, 0xd4, 0x2a, 0x90, 0x7e, 0x97,
+    0xea, 0xbf, 0x3e, 0xc7, 0x6a, 0x32, 0x37, 0x65,
+    0x35, 0x37, 0xcc, 0x0f, 0x11, 0xfa, 0xf4, 0xdf,
+    0xd8, 0xc0, 0xe1, 0x00, 0x04, 0xef, 0x34, 0x28,
+    0x67, 0x08, 0x8c, 0x74, 0x27, 0x19, 0x8d, 0xfb,
+    0x3d, 0x3d,
+];
+
 #[rustfmt::skip]
 const TESTNET4_GENESIS_OUTPUT_PK: [u8; 33] = [0x00; 33];
 
@@ -90,6 +134,18 @@ fn bitcoin_genesis_tx(params: &Params) -> Transaction {
                 .into_script(),
                 script::Builder::new().push_slice(TESTNET4_GENESIS_OUTPUT_PK).push_opcode(OP_CHECKSIG).into_script(),
 
+            ),
+            Network::Satsnet => ( // TODO genesis
+                script::Builder::new()
+                .extend_from_slice(SATSNET_SIGNATURE_SCRIPT)
+                .into_script(),
+                script::Builder::new().extend_from_slice(SATSNET_GENESIS_OUTPUT_PK_SCRIPT).into_script(),
+            ),
+            Network::Satstestnet => ( // TODO genesis
+                script::Builder::new()
+                .extend_from_slice(SATSTESTNET_SIGNATURE_SCRIPT)
+                .into_script(),
+                script::Builder::new().extend_from_slice(SATSTESTNET_GENESIS_OUTPUT_PK_SCRIPT).into_script(),
             ),
             _ => (
                 script::Builder::new()
@@ -181,25 +237,25 @@ pub fn genesis_block(params: impl AsRef<Params>) -> Block {
             },
             txdata,
         },
-        Network::Satsnet => Block {
+        Network::Satsnet => Block { // TODO genesis
             header: block::Header {
                 version: block::Version::ONE,
                 prev_blockhash: Hash::all_zeros(),
                 merkle_root,
-                time: 1231006505,
+                time: 1730688239,
                 bits: CompactTarget::from_consensus(0x1d00ffff),
-                nonce: 2083236893,
+                nonce: 1402046712,
             },
             txdata,
         },
-        Network::Satstestnet => Block {
+        Network::Satstestnet => Block { // TODO genesis
             header: block::Header {
                 version: block::Version::ONE,
                 prev_blockhash: Hash::all_zeros(),
                 merkle_root,
-                time: 1714777860,
-                bits: CompactTarget::from_consensus(0x1d00ffff),
-                nonce: 393743547,
+                time: 1733136112,
+                bits: CompactTarget::from_consensus(0x0),
+                nonce: 1182242621,
             },
             txdata,
         },
@@ -245,15 +301,17 @@ impl ChainHash {
         6, 34, 110, 70, 17, 26, 11, 89, 202, 175, 18, 96, 67, 235, 91, 191, 40, 195, 79, 58, 94,
         51, 42, 31, 199, 178, 183, 60, 241, 136, 145, 15,
     ]);
-    /// `ChainHash` for satsnet mainnet.
+    /// `ChainHash` for satsnet.
+    /// TODO genesis
     pub const SATSNET: Self = Self([
-        111, 226, 140, 10, 182, 241, 179, 114, 193, 166, 162, 70, 174, 99, 247, 79, 147, 30, 131,
-        101, 225, 90, 8, 156, 104, 214, 25, 0, 0, 0, 0, 0,
+        31, 7, 37, 48, 168, 190, 144, 210, 244, 57, 114, 95, 88, 165, 82, 167, 112, 147, 199, 48, 
+        177, 176, 104, 176, 174, 79, 150, 164, 111, 92, 72, 147,
     ]);
-    /// `ChainHash` for satsnet testnet.
+    /// `ChainHash` for satstestnet.
+    /// TODO genesis
     pub const SATSTESTNET: Self = Self([
-        67, 240, 139, 218, 176, 80, 227, 91, 86, 124, 134, 75, 145, 244, 127, 80, 174, 114, 90,
-        226, 222, 83, 188, 251, 186, 242, 132, 218, 0, 0, 0, 0,
+        33, 58, 182, 235, 153, 57, 28, 187, 178, 185, 140, 175, 147, 71, 170, 181,244, 114, 214, 
+        149, 31, 226, 102, 112, 87, 225, 67, 78, 4, 104, 27, 223,
     ]);
 
     /// Returns the hash of the `network` genesis block for use as a chain hash.

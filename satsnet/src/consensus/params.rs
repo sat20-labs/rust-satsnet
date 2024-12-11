@@ -189,7 +189,7 @@ impl Params {
     };
 
     /// The satsnet parameters.
-    pub const SATSNET: Params = Params {
+    pub const SATSNET: Params = Params { // TODO: params
         network: Network::Satsnet,
         bip16_time: 1333238400,                 // Apr 1 2012
         bip34_height: 227931, // 000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8
@@ -206,7 +206,7 @@ impl Params {
     };
 
     /// The satstestnet parameters.
-    pub const SATSTESTNET: Params = Params {
+    pub const SATSTESTNET: Params = Params { // TODO: params
         network: Network::Satstestnet,
         bip16_time: 1333238400, // Apr 1 2012
         bip34_height: 1,

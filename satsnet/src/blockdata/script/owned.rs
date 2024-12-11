@@ -199,6 +199,13 @@ impl ScriptBuf {
         self.push_slice_no_opt(data);
     }
 
+    /// Push some arbitrary data onto the stack.
+    pub fn extend_from_slice<T: AsRef<PushBytes>>(&mut self, data: T) {
+        let data = data.as_ref();
+        self.reserve(Self::reserved_len_for_slice(data.len()));
+        self.0.extend_from_slice(data.as_bytes());
+    }
+
     /// Pushes the slice without reserving
     fn push_slice_no_opt(&mut self, data: &PushBytes) {
         // Start with a PUSH opcode

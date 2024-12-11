@@ -63,6 +63,13 @@ impl Builder {
         self
     }
 
+    /// Push some arbitrary data onto the stack.
+    pub fn extend_from_slice<T: AsRef<PushBytes>>(mut self, data: T) -> Builder {
+        self.0.extend_from_slice(data);
+        self.1 = None;
+        self
+    }
+
     /// Adds instructions to push a public key onto the stack.
     pub fn push_key(self, key: &PublicKey) -> Builder {
         if key.compressed {

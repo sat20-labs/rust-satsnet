@@ -227,8 +227,10 @@ impl Magic {
     /// Bitcoin regtest network magic bytes.
     pub const REGTEST: Self = Self([0xFA, 0xBF, 0xB5, 0xDA]);
     /// Satsnet mainnet network magic bytes.
+    /// TODO protocol
     pub const SATSNET: Self = Self([0x16, 0x29, 0x08, 0xae]);
     /// Satsnet testnet network magic bytes.
+    /// TODO protocol
     pub const SATSTESTNET: Self = Self([0x17, 0x28, 0x18, 0xae]);
 
     /// Create network magic from bytes.
