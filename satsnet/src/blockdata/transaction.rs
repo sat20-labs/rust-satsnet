@@ -581,7 +581,7 @@ pub struct AssetInfo {
     /// Asset name
     pub name: AssetName,
     /// Asset quantity
-    pub amount: i64,
+    pub amount: String,
     /// Non-zero -> bound satoshi, 0 -> unbound satoshi
     pub binding_sat: u32,
 }
@@ -591,7 +591,7 @@ impl Encodable for AssetInfo {
     fn consensus_encode<W: Write + ?Sized>(&self, w: &mut W) -> Result<usize, io::Error> {
         let mut len = 0;
         len += self.name.consensus_encode(w)?;
-        len += VarInt(self.amount as u64).consensus_encode(w)?;
+        len += self.amount.consensus_encode(w)?;
         len += VarInt(self.binding_sat as u64).consensus_encode(w)?;
 
         Ok(len)
@@ -604,7 +604,7 @@ impl Decodable for AssetInfo {
         r: &mut R,
     ) -> core::result::Result<AssetInfo, crate::consensus::encode::Error>{
         let name = AssetName::consensus_decode(r)?;
-        let amount = VarInt::consensus_decode(r)?.0 as i64;
+        let amount = String::consensus_decode(r)?;
         let binding_sat = VarInt::consensus_decode(r)?.0 as u32;
         Ok(AssetInfo {
             name,
