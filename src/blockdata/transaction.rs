@@ -219,54 +219,92 @@ impl Default for TxIn {
     }
 }
 
-/// A range of satoshi values.
+/// Asset name containing protocol, type and ticker information
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct SatsRange {
-    /// The start of the range in satoshis.
-    pub start: u64,
-    /// The size of the range in satoshis.
-    pub size: u64,
+pub struct AssetName {
+    /// Required. Examples: ordx, ordinals, brc20, runes, eth, etc.
+    pub protocol: String,
+    /// Optional. Default is "ft", refer to indexer's definition
+    pub type_: String,
+    /// If Type is nft, ticker is collection name#inscription number (or satoshi number)
+    pub ticker: String,
 }
 
-// impl_consensus_encoding!(SatsRange, start, size);
+/// Asset information including name, amount and binding satoshi
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct AssetInfo {
+    /// Asset name
+    pub name: AssetName,
+    /// Asset quantity
+    pub amount: String,
+    /// Non-zero -> bound satoshi, 0 -> unbound satoshi
+    pub binding_sat: u32,
+}
 
-
-// impl Encodable for SatsRange {
-//     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
-//         let mut len = 0;
-//         len += self.start.consensus_encode(&mut s)?;
-//         len += self.size.consensus_encode(&mut s)?;
-//         Ok(len)
-//     }
-// }
-
-impl Encodable for SatsRange {
+// 为 AssetName 实现 Encodable 特性
+impl Encodable for AssetName {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
         let mut len = 0;
-
-        // Encode `start` using VarInt
-        let start_varint = VarInt(self.start);
-        len += start_varint.consensus_encode(&mut s)?;
-
-        // Encode `size` using VarInt
-        let size_varint = VarInt(self.size);
-        len += size_varint.consensus_encode(&mut s)?;
-
+        len += self.protocol.consensus_encode(&mut s)?;
+        len += self.type_.consensus_encode(&mut s)?;
+        len += self.ticker.consensus_encode(&mut s)?;
         Ok(len)
     }
 }
 
-impl Decodable for SatsRange {
+// 为 AssetName 实现 Decodable 特性
+impl Decodable for AssetName {
     fn consensus_decode<D: io::Read>(d: D) -> Result<Self, encode::Error> {
         let mut d: io::Take<D> = d.take(MAX_VEC_SIZE as u64);
-        let start = VarInt::consensus_decode(&mut d)?.0 as u64;
-        let size = VarInt::consensus_decode(&mut d)?.0 as u64;
-        let sats_range = SatsRange {
-            start: start,
-            size: size,
-        };
-        Ok(sats_range)
+        let protocol = String::consensus_decode(&mut d)?;
+        let type_ = String::consensus_decode(&mut d)?;
+        let ticker = String::consensus_decode(&mut d)?;
+        
+        Ok(AssetName {
+            protocol,
+            type_,
+            ticker,
+        })
+    }
+}
+
+impl Encodable for AssetInfo {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
+        let mut len = 0;
+        
+        // Encode AssetName
+        len += self.name.consensus_encode(&mut s)?;
+        
+        // Encode amount as String
+        len += self.amount.consensus_encode(&mut s)?;
+        
+        // Encode binding_sat
+        len += self.binding_sat.consensus_encode(&mut s)?;
+        
+        Ok(len)
+    }
+}
+
+impl Decodable for AssetInfo {
+    fn consensus_decode<D: io::Read>(d: D) -> Result<Self, encode::Error> {
+        let mut d: io::Take<D> = d.take(MAX_VEC_SIZE as u64);
+        
+        // Decode AssetName
+        let name = AssetName::consensus_decode(&mut d)?;
+        
+        // Decode amount as String
+        let amount = String::consensus_decode(&mut d)?;
+        
+        // Decode binding_sat
+        let binding_sat = u32::consensus_decode(&mut d)?;
+        
+        Ok(AssetInfo {
+            name,
+            amount,
+            binding_sat,
+        })
     }
 }
 
@@ -278,15 +316,14 @@ pub struct TxOut {
     pub value: u64,
     /// The script which must be satisfied for the output to be spent.
     pub script_pubkey: Script,
-    /// Sats index range for the output
-    pub sats_ranges: Vec<SatsRange>,
+    /// Asset information for the output
+    pub asset_infos: Vec<AssetInfo>,
 }
 
 // This is used as a "null txout" in consensus signing code.
 impl Default for TxOut {
     fn default() -> TxOut {
-        TxOut { value: 0xffffffffffffffff, script_pubkey: Script::new(), sats_ranges: Vec::new(), }
-        // TxOut { value: 0xffffffffffffffff, script_pubkey: Script::new(), }
+        TxOut { value: 0xffffffffffffffff, script_pubkey: Script::new(), asset_infos: Vec::new(), }
     }
 }
 
@@ -669,7 +706,7 @@ impl Encodable for TxOut {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
         let mut len = 0;
         len += self.value.consensus_encode(&mut s)?;
-        len += self.sats_ranges.consensus_encode(&mut s)?;
+        len += self.asset_infos.consensus_encode(&mut s)?;
         len += self.script_pubkey.consensus_encode(s)?;
         Ok(len)
     }
@@ -687,8 +724,8 @@ impl Decodable for TxOut {
             }
         };
 
-        // let sats_ranges = Decodable::consensus_decode(&mut d)?;
-        let sats_ranges = match Decodable::consensus_decode(&mut d) {
+        // let asset_infos = Decodable::consensus_decode(&mut d)?;
+        let asset_infos = match Decodable::consensus_decode(&mut d) {
             Ok(value) => value,
             Err(e) => {
                 eprintln!("Decoding error: {:?}", e);
@@ -706,13 +743,13 @@ impl Decodable for TxOut {
         };
         let tx_out = TxOut {
             value: value,
-            sats_ranges: sats_ranges,
+            asset_infos: asset_infos,
             script_pubkey: script_pubkey,
         };
         Ok(tx_out)
     }
 }
-// impl_consensus_encoding!(TxOut, value, sats_ranges, script_pubkey);
+// impl_consensus_encoding!(TxOut, value, asset_infos, script_pubkey);
 
 impl Encodable for OutPoint {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {

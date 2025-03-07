@@ -1,13 +1,13 @@
 [package]
 name = "satsnet"
-version = "0.28.12-mempool-electrs"
+version = "0.28.13-mempool-electrs"
 authors = ["Andrew Poelstra <apoelstra@wpsoftware.net>"]
 license = "CC0-1.0"
-homepage = "https://github.com/rust-bitcoin/rust-bitcoin/"
-repository = "https://github.com/rust-bitcoin/rust-bitcoin/"
+homepage = "https://github.com/sat20-labs/rust-satsnet/"
+repository = "https://github.com/sat20-labs/rust-satsnet/"
 documentation = "https://docs.rs/bitcoin/"
 description = "General purpose library for using and interoperating with Bitcoin and other cryptocurrencies."
-keywords = ["crypto", "bitcoin"]
+keywords = ["crypto", "bitcoin", "satsnet", "mempool", "electrs"]
 readme = "README.md"
 
 # Please don't forget to add relevant features to docs.rs below

@@ -108,7 +108,7 @@ fn bitcoin_genesis_tx() -> Transaction {
         .into_script();
     ret.output.push(TxOut {
         value: 50 * COIN_VALUE,
-        sats_ranges: vec![],
+        asset_infos: vec![],
         script_pubkey: out_script
     });
 

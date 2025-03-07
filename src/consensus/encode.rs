@@ -42,7 +42,7 @@ use util::psbt;
 use util::taproot::TapLeafHash;
 use hashes::hex::ToHex;
 
-use blockdata::transaction::{TxOut, SatsRange, Transaction, TxIn};
+use blockdata::transaction::{TxOut, AssetInfo, Transaction, TxIn};
 #[cfg(feature = "std")]
 use network::{message_blockdata::Inventory, address::{Address, AddrV2Message}};
 
@@ -580,7 +580,7 @@ impl_vec!(FilterHeader);
 impl_vec!(TxMerkleNode);
 // impl_vec!(Transaction);
 // impl_vec!(TxOut);
-// impl_vec!(SatsRange);
+// impl_vec!(AssetInfo);
 // impl_vec!(TxIn);
 impl_vec!(Vec<u8>);
 impl_vec!(u64);
@@ -673,7 +673,7 @@ impl Decodable for Vec<Transaction> {
     }
 }
 
-impl Encodable for Vec<SatsRange> {
+impl Encodable for Vec<AssetInfo> {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, io::Error> {
         let mut len = 0;
         len += VarInt(self.len() as u64).consensus_encode(&mut s)?;
@@ -684,11 +684,11 @@ impl Encodable for Vec<SatsRange> {
     }
 }
 
-impl Decodable for Vec<SatsRange> {
+impl Decodable for Vec<AssetInfo> {
     fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, Error> {
         let len = VarInt::consensus_decode(&mut d)?.0;
         let byte_size = (len as usize)
-            .checked_mul(mem::size_of::<SatsRange>())
+            .checked_mul(mem::size_of::<AssetInfo>())
             .ok_or(self::Error::ParseFailed("Invalid length"))?;
         if byte_size > MAX_VEC_SIZE {
             return Err(self::Error::OversizedVectorAllocation { requested: byte_size, max: MAX_VEC_SIZE })
