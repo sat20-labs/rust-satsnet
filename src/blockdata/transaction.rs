@@ -280,8 +280,8 @@ impl Encodable for AssetInfo {
         // Encode amount as String
         len += self.amount.consensus_encode(&mut s)?;
         
-        // Encode binding_sat
-        len += self.binding_sat.consensus_encode(&mut s)?;
+        // Encode binding_sat as VarInt
+        len += VarInt(self.binding_sat as u64).consensus_encode(&mut s)?;
         
         Ok(len)
     }
@@ -297,8 +297,8 @@ impl Decodable for AssetInfo {
         // Decode amount as String
         let amount = String::consensus_decode(&mut d)?;
         
-        // Decode binding_sat
-        let binding_sat = u32::consensus_decode(&mut d)?;
+        // Decode binding_sat as VarInt
+        let binding_sat = VarInt::consensus_decode(&mut d)?.0 as u32;
         
         Ok(AssetInfo {
             name,
